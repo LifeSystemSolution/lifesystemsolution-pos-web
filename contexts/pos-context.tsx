@@ -32,8 +32,8 @@ import {
   recordCashAdjustmentTransaction,
   recordCashMovementTransaction,
 } from "@/lib/firebase/firestore"
-import { Timestamp, serverTimestamp, doc, setDoc, collection, runTransaction, onSnapshot } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
+import { Timestamp, serverTimestamp, doc, setDoc, collection, runTransaction, onSnapshot } from "@/lib/local/firebase-shim/firestore"
+import { db } from "@/lib/local/db-placeholder"
 
 interface CartItem extends OrderItem {
   tempId: string

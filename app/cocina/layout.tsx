@@ -11,18 +11,19 @@ export default function CocinaLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { firebaseUser, user, store, isCocina } = useAuth()
+  const { firebaseUser, isRestoring, user, store, isCocina } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
+    if (isRestoring) return
     if (!firebaseUser || !user || !store) {
       router.push("/")
     } else if (!isCocina) {
       router.push("/")
     }
-  }, [firebaseUser, user, store, isCocina, router])
+  }, [isRestoring, firebaseUser, user, store, isCocina, router])
 
-  if (!firebaseUser || !user || !store) {
+  if (isRestoring || !firebaseUser || !user || !store) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Spinner className="h-12 w-12 text-primary" />

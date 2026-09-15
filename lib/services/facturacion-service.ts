@@ -1,7 +1,7 @@
 import type { Order, OrderItem } from "@/lib/firebase/firestore"
 import { addDocument, getDocuments, updateDocument, collections } from "@/lib/firebase/firestore"
-import { db } from "@/lib/firebase/config"
-import { where, orderBy, query, collection, onSnapshot } from "firebase/firestore"
+import { db } from "@/lib/local/db-placeholder"
+import { where, orderBy, query, collection, onSnapshot } from "@/lib/local/firebase-shim/firestore"
 import type {
   ClienteComprobante,
   ComprobanteRegistro,

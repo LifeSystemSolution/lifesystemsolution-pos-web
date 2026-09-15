@@ -23,9 +23,9 @@ import {
 } from "lucide-react"
 import type { Order, CashRegister } from "@/lib/firebase/firestore"
 import { getDocuments, collections, recalculateCashRegisterAfterOrderDeletion, updateDocument } from "@/lib/firebase/firestore"
-import { where } from "firebase/firestore"
-import { onSnapshot, collection, query } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
+import { where } from "@/lib/local/firebase-shim/firestore"
+import { onSnapshot, collection, query } from "@/lib/local/firebase-shim/firestore"
+import { db } from "@/lib/local/db-placeholder"
 import { toPeruDate } from "@/lib/utils"
 
 interface ClosureSalesModalProps {

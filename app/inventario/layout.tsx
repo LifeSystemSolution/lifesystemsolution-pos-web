@@ -11,18 +11,19 @@ export default function InventarioLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { firebaseUser, user, store, isAdmin } = useAuth()
+  const { firebaseUser, isRestoring, user, store, isAdmin } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
+    if (isRestoring) return
     if (!firebaseUser || !user || !store) {
       router.push("/")
     } else if (!isAdmin) {
       router.push("/")
     }
-  }, [firebaseUser, user, store, isAdmin, router])
+  }, [isRestoring, firebaseUser, user, store, isAdmin, router])
 
-  if (!firebaseUser || !user || !store) {
+  if (isRestoring || !firebaseUser || !user || !store) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Spinner className="h-12 w-12 text-primary" />

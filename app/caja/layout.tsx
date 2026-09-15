@@ -11,18 +11,19 @@ export default function CajaLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { firebaseUser, user, store, isCajero } = useAuth()
+  const { firebaseUser, isRestoring, user, store, isCajero } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
+    if (isRestoring) return
     if (!firebaseUser || !user || !store) {
       router.push("/")
     } else if (!isCajero) {
       router.push("/")
     }
-  }, [firebaseUser, user, store, isCajero, router])
+  }, [isRestoring, firebaseUser, user, store, isCajero, router])
 
-  if (!firebaseUser || !user || !store) {
+  if (isRestoring || !firebaseUser || !user || !store) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Spinner className="h-12 w-12 text-primary" />

@@ -22,8 +22,8 @@ import type { Order, Store } from "@/lib/firebase/firestore"
 import { collections, recalculateCashRegisterAfterOrderDeletion, getDocument } from "@/lib/firebase/firestore"
 import { formatPeruTime, getPeruDayKey, toPeruDate, calculateItemTotal } from "@/lib/utils"
 import { cn } from "@/lib/utils"
-import { deleteDoc, doc } from "firebase/firestore"
-import { db } from "@/lib/firebase/config"
+import { deleteDoc, doc } from "@/lib/local/firebase-shim/firestore"
+import { db } from "@/lib/local/db-placeholder"
 
 interface DailySalesProps {
   orders: Order[]

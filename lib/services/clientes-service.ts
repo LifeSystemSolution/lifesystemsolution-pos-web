@@ -1,5 +1,5 @@
 import { addDocument, collections, getDocuments, updateDocument } from "@/lib/firebase/firestore"
-import { where, limit } from "firebase/firestore"
+import { where, limit } from "@/lib/local/firebase-shim/firestore"
 
 export type TipoDocumentoCliente = "1" | "6"
 

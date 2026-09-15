@@ -21,8 +21,13 @@ import {
   type Transaction,
   type DocumentSnapshot,
   type DocumentData,
-} from "firebase/firestore"
-import { db } from "./config"
+  // Este módulo apuntaba a "firebase/firestore" (SDK real). Ahora apunta al
+  // shim (lib/local/firebase-shim/firestore.ts), que implementa el mismo
+  // subconjunto de la API sobre Postgres/Supabase vía app/api/db. El resto
+  // de este archivo (~4500 líneas de lógica de negocio original) queda
+  // intacto — ver docs/SQL_MIGRATION_PLAN.md.
+} from "@/lib/local/firebase-shim/firestore"
+import { db } from "@/lib/local/db-placeholder" // el shim ignora este valor — se mantiene solo para no tocar cada call site que lo pasa como primer argumento
 
 export type FirestoreDate = Timestamp
 

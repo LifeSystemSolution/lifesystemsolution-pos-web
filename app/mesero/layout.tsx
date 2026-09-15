@@ -11,18 +11,19 @@ export default function MeseroLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { firebaseUser, user, store, isMesero } = useAuth()
+  const { firebaseUser, isRestoring, user, store, isMesero } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
+    if (isRestoring) return
     if (!firebaseUser || !user || !store) {
       router.push("/")
     } else if (!isMesero) {
       router.push("/")
     }
-  }, [firebaseUser, user, store, isMesero, router])
+  }, [isRestoring, firebaseUser, user, store, isMesero, router])
 
-  if (!firebaseUser || !user || !store) {
+  if (isRestoring || !firebaseUser || !user || !store) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Spinner className="h-12 w-12 text-primary" />

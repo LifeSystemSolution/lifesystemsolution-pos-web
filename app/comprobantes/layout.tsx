@@ -11,20 +11,21 @@ export default function ComprobantesLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { firebaseUser, user, store, isCajero, isAdmin, isSuperAdmin } = useAuth()
+  const { firebaseUser, isRestoring, user, store, isCajero, isAdmin, isSuperAdmin } = useAuth()
   const router = useRouter()
 
   const tieneAcceso = isCajero || isAdmin || isSuperAdmin
 
   useEffect(() => {
+    if (isRestoring) return
     if (!firebaseUser || !user || !store) {
       router.push("/")
     } else if (!tieneAcceso) {
       router.push("/")
     }
-  }, [firebaseUser, user, store, tieneAcceso, router])
+  }, [isRestoring, firebaseUser, user, store, tieneAcceso, router])
 
-  if (!firebaseUser || !user || !store) {
+  if (isRestoring || !firebaseUser || !user || !store) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Spinner className="h-12 w-12 text-primary" />

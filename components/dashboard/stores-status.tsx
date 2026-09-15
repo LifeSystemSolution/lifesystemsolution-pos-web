@@ -46,7 +46,9 @@ export function StoresStatusPanel() {
 
   // Load all stores
   useEffect(() => {
-    getAllStores().then(setStores)
+    getAllStores()
+      .then(setStores)
+      .catch((err) => console.error("[stores-status] Error cargando tiendas:", err))
   }, [])
 
   // Subscribe to closed cash registers for all stores
