@@ -64,7 +64,9 @@ CREATE TABLE IF NOT EXISTS documents (
   data        JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (collection, id)
+  -- El mismo id de Firestore puede existir en empresas diferentes. La
+  -- empresa debe formar parte de la identidad física del documento.
+  PRIMARY KEY (company_id, collection, id)
 );
 
 CREATE INDEX IF NOT EXISTS documents_collection_idx ON documents (collection);
@@ -107,4 +109,9 @@ CREATE POLICY documents_company_isolation ON documents
 -- Habilita Supabase Realtime (postgres_changes) sobre esta tabla. El relay
 -- que reemplaza a onSnapshot (ver plan) escucha esto con la service role key
 -- desde el servidor, nunca desde el navegador.
-ALTER PUBLICATION supabase_realtime ADD TABLE documents;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE documents;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;

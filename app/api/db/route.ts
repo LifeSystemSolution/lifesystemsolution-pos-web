@@ -84,15 +84,15 @@ async function writeOne(
   op: { type: "set" | "update" | "delete"; collection: string; id: string; data?: any; merge?: boolean }
 ) {
   if (op.type === "delete") {
-    await client.query(`DELETE FROM documents WHERE collection = $1 AND id = $2`, [op.collection, op.id])
+    await client.query(`DELETE FROM documents WHERE collection = $1 AND id = $2 AND company_id = $3`, [op.collection, op.id, companyId])
     return
   }
   if (op.type === "update") {
     // company_id no se toca en un update — un doc no cambia de empresa.
     await client.query(
       `UPDATE documents SET data = data || $3::jsonb, updated_at = now()
-       WHERE collection = $1 AND id = $2`,
-      [op.collection, op.id, JSON.stringify(op.data || {})]
+       WHERE collection = $1 AND id = $2 AND company_id = $4`,
+      [op.collection, op.id, JSON.stringify(op.data || {}), companyId]
     )
     return
   }
@@ -101,7 +101,7 @@ async function writeOne(
     await client.query(
       `INSERT INTO documents (collection, id, company_id, data, updated_at)
        VALUES ($1, $2, $4, $3::jsonb, now())
-       ON CONFLICT (collection, id)
+       ON CONFLICT (company_id, collection, id)
        DO UPDATE SET data = documents.data || EXCLUDED.data, updated_at = now()`,
       [op.collection, op.id, JSON.stringify(op.data || {}), companyId]
     )
@@ -109,7 +109,7 @@ async function writeOne(
     await client.query(
       `INSERT INTO documents (collection, id, company_id, data, updated_at)
        VALUES ($1, $2, $4, $3::jsonb, now())
-       ON CONFLICT (collection, id)
+       ON CONFLICT (company_id, collection, id)
        DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
       [op.collection, op.id, JSON.stringify(op.data || {}), companyId]
     )
