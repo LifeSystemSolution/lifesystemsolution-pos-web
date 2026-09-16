@@ -27,6 +27,19 @@ el servidor. Configura **exactamente** las cuatro variables siguientes:
    y **Development** que realmente vayas a usar. No copies `POSTGRES_*`,
    `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_JWT_SECRET` ni
    `SUPABASE_SECRET_KEY`: este código no los lee.
+   Para crear `AUTH_JWT_SECRET`, abre una terminal en tu computadora, dentro
+   de la carpeta del proyecto, y ejecuta exactamente:
+
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+   ```
+
+   Copia **la única línea completa** que imprime el comando. En Vercel pulsa
+   **Add Environment Variable**, escribe `AUTH_JWT_SECRET` como nombre, pega
+   esa línea como valor, selecciona **Production** y guarda. No uses el JWT
+   Secret de Supabase para este campo ni añadas comillas. Es una clave privada
+   de esta aplicación; no debe compartirse ni volver a generarse salvo que se
+   quiera cerrar todas las sesiones actuales.
 5. Pega `DATABASE_URL` desde el modo *Transaction pooler*, no una URL parcial
    ni los campos host/usuario por separado. Conserva el usuario, contraseña,
    host, puerto y los parámetros de la URL tal como los entrega Supabase.
