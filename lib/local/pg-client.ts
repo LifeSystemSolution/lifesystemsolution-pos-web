@@ -19,7 +19,11 @@ declare global {
   var __lssPgPool: Pool | undefined
 }
 
-const POOL_SIZE = 10
+// En Vercel cada instancia de la función puede crear su propio pool. Un pool
+// grande por instancia agota rápidamente las conexiones de Supabase cuando
+// hay varios usuarios o despliegues preview a la vez. PgBouncer ya multiplexa
+// las conexiones, por lo que dos por instancia son suficientes.
+const POOL_SIZE = 2
 
 export function getPool(): Pool {
   if (!global.__lssPgPool) {
@@ -35,22 +39,9 @@ export function getPool(): Pool {
       // función solo necesita un puñado propias, no cientos.
       max: POOL_SIZE,
       idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
     })
     global.__lssPgPool = pool
-
-    // Precalentar: el handshake TLS + el startup de Postgres contra un
-    // Postgres en otra región cuesta ~600-700ms POR CONEXIÓN NUEVA. Sin esto,
-    // cuando el navegador dispara varias lecturas en paralelo al montar una
-    // página (varias colecciones a la vez), cada una que no encuentra una
-    // conexión ociosa paga ese costo de nuevo — es la causa real de la
-    // lentitud que se vio en dev. Abriendo las conexiones de una al arrancar
-    // el proceso, quedan listas ANTES de que llegue tráfico real.
-    for (let i = 0; i < POOL_SIZE; i++) {
-      pool
-        .connect()
-        .then((client) => client.release())
-        .catch((err) => console.error("[pg-client] Error precalentando conexión:", err.message))
-    }
   }
   return global.__lssPgPool
 }
