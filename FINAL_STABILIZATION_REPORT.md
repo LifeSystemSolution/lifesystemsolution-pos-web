@@ -11,7 +11,7 @@
   - Replaced `value=""` with `value="all_users"` in financial-history filter
   - Updated filter logic to check against "all_users" instead of empty string
   - Updated reset handler to use "all_users" default
-
+   
 #### 2. Firestore Index Documentation ✓
 - **Issue:** Missing documentation for required composite index
 - **Status:** DOCUMENTED
