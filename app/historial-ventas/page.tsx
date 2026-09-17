@@ -42,7 +42,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function SalesHistoryPage() {
-  const { currentStoreId, isAdmin, isSuperAdmin } = useAuth()
+  const { currentStoreId, isAdmin, isSuperAdmin, isRestoring } = useAuth()
   const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -51,12 +51,16 @@ export default function SalesHistoryPage() {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all")
   const [searchTable, setSearchTable] = useState("")
 
-  // Check authorization
+  // Check authorization — espera a que termine de restaurarse la sesión
+  // (ver contexts/auth-context.tsx) antes de decidir si redirigir; si no,
+  // en cualquier recarga completa isAdmin/isSuperAdmin arrancan en false
+  // y esto manda a "/" antes de que la sesión guardada llegue a cargar.
   useEffect(() => {
+    if (isRestoring) return
     if (!isAdmin && !isSuperAdmin) {
       router.push("/")
     }
-  }, [isAdmin, isSuperAdmin, router])
+  }, [isRestoring, isAdmin, isSuperAdmin, router])
 
   // Subscribe to paid orders
   useEffect(() => {

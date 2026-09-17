@@ -18,7 +18,7 @@ export default function GastosLayout({
     if (isRestoring) return
     if (!firebaseUser || !user || !store) {
       router.push("/")
-    } else if (!["admin", "admin_global", "cajero"].includes(user?.role || "")) {
+    } else if (!["admin", "admin_global", "super_admin", "cajero"].includes(user?.role || "")) {
       router.push("/")
     }
   }, [isRestoring, firebaseUser, user, store, router])

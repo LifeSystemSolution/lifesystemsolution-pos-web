@@ -14,8 +14,8 @@
  *      emitido por app/api/auth/login — ver lib/local/session.ts), porque
  *      el servidor necesita saber de qué EMPRESA son los datos que está
  *      pidiendo — ver resolveCompanyId en app/api/db/route.ts.
- *   2. onSnapshot usa Server-Sent Events contra app/api/realtime (relay de
- *      Supabase Realtime), no polling — ver la nota en esa función más abajo.
+ *   2. onSnapshot hace polling cada 3s (ver la nota en esa función más abajo
+ *      sobre por qué no es SSE/Realtime, a pesar de que se intentó).
  * ---------------------------------------------------------------------------
  */
 import { getStoredSession } from "@/lib/local/session"
@@ -264,57 +264,48 @@ export async function addDoc(ref: CollectionRef, data: Record<string, any>) {
 }
 
 // ---------------------------------------------------------------------------
-// onSnapshot — Server-Sent Events contra /api/realtime (relay de Supabase
-// Realtime, ver ese archivo). El evento SSE solo avisa "algo cambió en esta
-// colección" (collection + id), no manda el documento — al recibirlo, se
-// vuelve a pedir con getDoc/getDocs (mismo camino que una lectura normal,
-// con el where/orderBy/limit ya aplicado del lado del servidor). Es menos
-// "puro" que reconstruir el estado a mano desde el payload del evento, pero
-// muchísimo más simple y sin duplicar lógica de filtrado en el navegador.
+// onSnapshot — polling, no SSE.
 //
-// EventSource reconecta solo si la conexión se corta (comportamiento nativo
-// del navegador) — no hace falta manejarlo acá.
+// Hubo una versión con relay SSE contra /api/realtime (Supabase Realtime).
+// Funcionaba local, pero en Vercel las funciones serverless con runtime
+// "nodejs" no sostienen un WebSocket saliente + una respuesta en streaming
+// indefinida desde dentro de la función: en producción no llegaba ni la
+// cabecera de la respuesta (probado con curl -N, 0 bytes en 8s). Es una
+// limitación de la plataforma, no un bug de este archivo — para resolverlo
+// de verdad haría falta Edge Runtime o un servicio de relay aparte, no
+// serverless. Mientras tanto, polling: menos instantáneo, pero es un
+// fetch corto y normal, funciona igual en local, Vercel, o cualquier otro
+// hosting serverless. app/api/realtime/route.ts queda en el repo por si se
+// retoma el relay más adelante, pero el shim ya no lo usa.
 // ---------------------------------------------------------------------------
-export function onSnapshot(ref: DocRef | CollectionRef | QueryRef, onNext: (snap: SnapshotLike) => void, onError?: (err: any) => void) {
-  let cancelled = false
-  let es: EventSource | undefined
+const POLL_INTERVAL_MS = 3000 // WAN, no LAN — más espaciado que los 2s del desktop
 
-  const refresh = async () => {
+export function onSnapshot(ref: DocRef | CollectionRef | QueryRef, onNext: (snap: SnapshotLike) => void, onError?: (err: any) => void) {
+  let active = true
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let lastSerialized: string | undefined
+
+  const tick = async () => {
     try {
       const snap = ref.__kind === "doc" ? await getDoc(ref) : await getDocs(ref)
-      if (!cancelled) onNext(snap)
+      if (!active) return
+      const serialized = ref.__kind === "doc" ? JSON.stringify(snap.data()) : JSON.stringify(snap.docs.map((d) => [d.id, d.data()]))
+      if (serialized !== lastSerialized) {
+        lastSerialized = serialized
+        onNext(snap)
+      }
     } catch (err) {
-      if (!cancelled) onError?.(err)
+      onError?.(err)
+    } finally {
+      if (active) timer = setTimeout(tick, POLL_INTERVAL_MS)
     }
   }
 
-  void (async () => {
-    // Primer estado inmediato — SSE solo notifica cambios futuros, no el
-    // estado actual al conectar.
-    await refresh()
-    if (cancelled) return
-
-    try {
-      const session = getStoredSession()
-      if (!session) throw new Error("No hay sesión activa")
-      const url = `/api/realtime?token=${encodeURIComponent(session.token)}&collection=${encodeURIComponent(ref.name)}`
-      es = new EventSource(url)
-      es.onmessage = () => {
-        if (!cancelled) void refresh()
-      }
-      es.onerror = () => {
-        // No se re-lanza como error de la app: EventSource reintenta la
-        // conexión solo (el token de sesión dura 7 días — ver lib/local/auth.ts,
-        // no hace falta refrescarlo en cada reconexión de la SSE).
-      }
-    } catch (err) {
-      if (!cancelled) onError?.(err)
-    }
-  })()
+  void tick()
 
   return () => {
-    cancelled = true
-    es?.close()
+    active = false
+    if (timer) clearTimeout(timer)
   }
 }
 
