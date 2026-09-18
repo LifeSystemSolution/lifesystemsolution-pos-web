@@ -247,7 +247,31 @@ con `vercel inspect` mostrando el alias apuntando al build correcto antes de
 reintentar. Si vuelve a pasar: `vercel ls` para ver el estado de la cola,
 `vercel deploy --prod --force` para forzar un build limpio y realiasar.
 
-## 12. No probado aún en esta ronda
+## 12. Creación de tiendas/usuarios centralizada en /plataforma (2026-09-18)
+
+Verificado contra producción con un token real de `acc_admin` (admin de
+LifeSystemSolution, no dueño de plataforma):
+- `POST /api/db` con `addDoc` sobre `users` → **403**
+  `"Solo el dueño de la plataforma puede crear tiendas o usuarios nuevos"`.
+- Mismo resultado para `addDoc` sobre `stores`.
+- `getDocs` (lectura normal) sigue funcionando sin cambios para ese mismo
+  admin — la restricción es específica a creación, no rompe el resto de
+  `/admin`.
+
+**`POST .../stores` y `POST .../users` verificados en vivo** contra
+"LifeSystemSolution" (datos de prueba borrados al terminar):
+- Se creó "Sede Test QA" — confirmado en DB: la tienda, **10 mesas** y **5
+  inventory_items de pizza** (`store_..._pizzamass_PERSONAL/BIPERSONAL/
+  FAMILIAR/GIGANTE/SUPER_GIGANTE`), mismo shape que una tienda creada por el
+  camino viejo.
+- Se creó un usuario mesero para esa tienda — PIN generado y devuelto
+  correctamente.
+- Se confirmó el guard de integridad: pedir un `storeId` que no pertenece a
+  la empresa (`"nonexistent-store-id"`) devuelve
+  `"La tienda indicada no pertenece a esta empresa"` en vez de crear el
+  usuario con una referencia rota.
+
+## 13. No probado aún en esta ronda
 
 - Ajustes manuales de inventario.
 - Gestión de proveedores / pago a proveedores.
