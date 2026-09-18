@@ -4454,8 +4454,13 @@ export async function registerInternalExpenseV2(
       status: "completed",
     })
 
-    // Create financial movement
-    const movRef = doc(collection(db, collections.safeBoxMovements))
+    // Create financial movement — debe ir a `financialMovements` (no
+    // `safeBoxMovements`) con campo `timestamp` (no `createdAt`): es la
+    // colección y el campo que subscribeToFinancialMovements() consulta
+    // para la sección "Últimos movimientos" de /caja. Antes se escribía acá
+    // a la colección equivocada y el gasto nunca aparecía en esa lista aunque
+    // sí se descontaba el saldo correctamente.
+    const movRef = doc(collection(db, collections.financialMovements))
     transaction.set(movRef, {
       storeId,
       type: "expense",
@@ -4466,7 +4471,7 @@ export async function registerInternalExpenseV2(
       relatedDocId: expenseRef.id,
       userId,
       userName,
-      createdAt: serverTimestamp(),
+      timestamp: serverTimestamp(),
       archived: false,
     })
 
