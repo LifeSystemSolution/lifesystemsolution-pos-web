@@ -130,6 +130,23 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
 
+  // Crear tiendas o usuarios operativos nuevos es exclusivo del dueño de la
+  // plataforma (ver /plataforma y docs/PLATFORM_OWNER.md) — ni admin ni
+  // super_admin de una empresa pueden hacerlo, ni siquiera llamando este
+  // endpoint directo (el botón ya no existe en /admin, pero esto es lo que
+  // realmente lo impide). Editar/desactivar tiendas y usuarios existentes
+  // sigue permitido — solo la CREACIÓN queda restringida.
+  if (
+    body.op === "addDoc" &&
+    (body.collection === "users" || body.collection === "stores") &&
+    !session.isPlatformOwner
+  ) {
+    return NextResponse.json(
+      { error: "Solo el dueño de la plataforma puede crear tiendas o usuarios nuevos" },
+      { status: 403 }
+    )
+  }
+
   try {
     const outcome = await withCompanyScope(session.accountId, async (client, companyId) => {
       switch (body.op) {

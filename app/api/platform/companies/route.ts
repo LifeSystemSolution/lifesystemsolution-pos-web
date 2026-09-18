@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getPool, withPlatformOwnerScope } from "@/lib/local/pg-client"
 import { getPlatformOwnerSession } from "@/lib/local/platform-auth"
 import { hashPassword } from "@/lib/local/auth"
+import { seedNewStore } from "@/lib/local/platform-store-seed"
 
 export const runtime = "nodejs"
 
@@ -162,6 +163,7 @@ export async function POST(req: NextRequest) {
           }),
         ]
       )
+      await seedNewStore(client, companyId, storeId)
 
       await client.query("COMMIT")
     } catch (err) {

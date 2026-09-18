@@ -750,10 +750,10 @@ export default function AdminPage() {
         <TabsContent value="users" className="space-y-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <h2 className="text-base sm:text-lg font-semibold">Gestión de Usuarios</h2>
-            <Button onClick={() => handleOpenUserModal()} className="gap-2 w-full sm:w-auto h-10">
-              <Plus className="h-4 w-4" />
-              Nuevo Usuario
-            </Button>
+            <p className="text-xs text-muted-foreground">
+              Crear usuarios nuevos es exclusivo del dueño de la plataforma — pedile que
+              agregue uno desde /plataforma.
+            </p>
           </div>
 
           <Card>
@@ -887,10 +887,10 @@ export default function AdminPage() {
           <TabsContent value="stores" className="space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <h2 className="text-base sm:text-lg font-semibold">Gestión de Locales</h2>
-              <Button onClick={() => handleOpenStoreModal()} className="gap-2 w-full sm:w-auto h-10">
-                <Plus className="h-4 w-4" />
-                Nuevo Local
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                Crear locales nuevos es exclusivo del dueño de la plataforma — pedile que
+                agregue uno desde /plataforma.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

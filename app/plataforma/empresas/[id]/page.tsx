@@ -86,6 +86,20 @@ export default function PlataformaEmpresaDetailPage() {
   const [memberPassword, setMemberPassword] = useState("")
   const [isSavingMember, setIsSavingMember] = useState(false)
 
+  // Add store dialog
+  const [showAddStore, setShowAddStore] = useState(false)
+  const [storeName, setStoreName] = useState("")
+  const [storeCode, setStoreCode] = useState("")
+  const [isSavingStore, setIsSavingStore] = useState(false)
+
+  // Add operational user dialog
+  const [showAddUser, setShowAddUser] = useState(false)
+  const [userName, setUserName] = useState("")
+  const [userRole, setUserRole] = useState("mesero")
+  const [userStoreId, setUserStoreId] = useState("")
+  const [isSavingUser, setIsSavingUser] = useState(false)
+  const [createdUserPin, setCreatedUserPin] = useState<string | null>(null)
+
   const load = async () => {
     try {
       const [detailRes, plansRes] = await Promise.all([
@@ -183,6 +197,65 @@ export default function PlataformaEmpresaDetailPage() {
       await load()
     } catch (err: any) {
       alert(err.message || "Error quitando la cuenta")
+    }
+  }
+
+  const openAddStore = () => {
+    setStoreName("")
+    setStoreCode("")
+    setShowAddStore(true)
+  }
+
+  const handleAddStore = async () => {
+    if (!storeName.trim() || !storeCode.trim()) {
+      alert("Nombre y código son requeridos")
+      return
+    }
+    setIsSavingStore(true)
+    try {
+      await platformFetch(`/api/platform/companies/${companyId}/stores`, {
+        method: "POST",
+        body: JSON.stringify({ name: storeName, code: storeCode }),
+      })
+      setShowAddStore(false)
+      await load()
+    } catch (err: any) {
+      alert(err.message || "Error agregando la tienda")
+    } finally {
+      setIsSavingStore(false)
+    }
+  }
+
+  const openAddUser = () => {
+    setUserName("")
+    setUserRole("mesero")
+    setUserStoreId(stores[0]?.id || "")
+    setCreatedUserPin(null)
+    setShowAddUser(true)
+  }
+
+  const handleAddUser = async () => {
+    if (!userName.trim()) {
+      alert("El nombre es requerido")
+      return
+    }
+    const needsStore = userRole !== "super_admin" && userRole !== "admin_global"
+    if (needsStore && !userStoreId) {
+      alert("Selecciona una tienda para este rol")
+      return
+    }
+    setIsSavingUser(true)
+    try {
+      const res = await platformFetch(`/api/platform/companies/${companyId}/users`, {
+        method: "POST",
+        body: JSON.stringify({ name: userName, role: userRole, storeId: needsStore ? userStoreId : undefined }),
+      })
+      setCreatedUserPin(res.pin)
+      await load()
+    } catch (err: any) {
+      alert(err.message || "Error agregando el usuario")
+    } finally {
+      setIsSavingUser(false)
     }
   }
 
@@ -309,11 +382,15 @@ export default function PlataformaEmpresaDetailPage() {
 
       {/* Stores */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <StoreIcon className="h-5 w-5" />
             Tiendas
           </CardTitle>
+          <Button size="sm" variant="outline" onClick={openAddStore}>
+            <Plus className="h-4 w-4 mr-1" />
+            Agregar tienda
+          </Button>
         </CardHeader>
         <CardContent>
           <Table>
@@ -346,19 +423,22 @@ export default function PlataformaEmpresaDetailPage() {
             </TableBody>
           </Table>
           <p className="text-xs text-muted-foreground mt-3">
-            Para agregar más tiendas, el administrador de la empresa lo hace desde su
-            propio panel (/admin) — cada tienda nueva cuenta contra el límite de su plan.
+            Cada tienda nueva cuenta contra el límite de tiendas del plan de la empresa.
           </p>
         </CardContent>
       </Card>
 
-      {/* Operational users (read-only) */}
+      {/* Operational users */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <Users2 className="h-5 w-5" />
             Usuarios operativos (PIN)
           </CardTitle>
+          <Button size="sm" variant="outline" onClick={openAddUser} disabled={stores.length === 0}>
+            <Plus className="h-4 w-4 mr-1" />
+            Agregar usuario
+          </Button>
         </CardHeader>
         <CardContent>
           <Table>
@@ -391,9 +471,8 @@ export default function PlataformaEmpresaDetailPage() {
             </TableBody>
           </Table>
           <p className="text-xs text-muted-foreground mt-3">
-            Vista de solo lectura — mesero, cajero, cocina y admins con PIN se crean y
-            editan desde el /admin de la propia empresa, con la lógica de tienda/rol
-            correspondiente.
+            Se crean desde acá con un PIN generado automáticamente — desde el /admin de
+            la empresa solo se pueden editar/desactivar los ya existentes.
           </p>
         </CardContent>
       </Card>
@@ -487,6 +566,121 @@ export default function PlataformaEmpresaDetailPage() {
               {isSavingMember ? "Guardando..." : "Agregar"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add store dialog */}
+      <Dialog open={showAddStore} onOpenChange={setShowAddStore}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Agregar tienda</DialogTitle>
+            <DialogDescription>Se crea con 10 mesas y el inventario base de pizza, lista para usar.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Nombre</Label>
+              <Input
+                placeholder="Ej: Sede Norte"
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Código</Label>
+              <Input
+                placeholder="Ej: NORTE"
+                value={storeCode}
+                onChange={(e) => setStoreCode(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddStore(false)} disabled={isSavingStore}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAddStore} disabled={isSavingStore}>
+              {isSavingStore ? "Creando..." : "Crear tienda"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add operational user dialog */}
+      <Dialog open={showAddUser} onOpenChange={(open) => { setShowAddUser(open); if (!open) setCreatedUserPin(null) }}>
+        <DialogContent className="max-w-sm">
+          {createdUserPin ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Usuario creado</DialogTitle>
+                <DialogDescription>Guarda el PIN — no se vuelve a mostrar.</DialogDescription>
+              </DialogHeader>
+              <div className="p-3 rounded-lg bg-muted/50 border border-border space-y-1 my-2">
+                <p className="text-xs text-muted-foreground">PIN operativo</p>
+                <p className="font-mono text-2xl tracking-widest">{createdUserPin}</p>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => { setShowAddUser(false); setCreatedUserPin(null) }}>Listo</Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Agregar usuario operativo</DialogTitle>
+                <DialogDescription>Se genera un PIN automáticamente para desbloqueo en tienda.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label>Nombre</Label>
+                  <Input
+                    placeholder="Ej: Carlos Ramírez"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Rol</Label>
+                  <Select value={userRole} onValueChange={setUserRole}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mesero">Mesero</SelectItem>
+                      <SelectItem value="cajero">Cajero</SelectItem>
+                      <SelectItem value="cocina">Cocina</SelectItem>
+                      <SelectItem value="admin">Admin (una tienda)</SelectItem>
+                      <SelectItem value="admin_global">Admin global (varias tiendas)</SelectItem>
+                      <SelectItem value="super_admin">Super admin (todas las tiendas)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {userRole !== "super_admin" && userRole !== "admin_global" && (
+                  <div className="space-y-2">
+                    <Label>Tienda</Label>
+                    <Select value={userStoreId} onValueChange={setUserStoreId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecciona una tienda" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {stores.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowAddUser(false)} disabled={isSavingUser}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleAddUser} disabled={isSavingUser}>
+                  {isSavingUser ? "Creando..." : "Crear usuario"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

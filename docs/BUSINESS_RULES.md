@@ -44,6 +44,17 @@ type Permission =
 
 `manage_stores` es el único permiso exclusivo de `super_admin`.
 
+> **Importante — esto ya NO alcanza para crear tiendas o usuarios.** Desde
+> 2026-09-18, crear una tienda o un usuario operativo nuevo es exclusivo del
+> dueño de la plataforma (`/plataforma`, ver
+> [PLATFORM_OWNER.md](./PLATFORM_OWNER.md)) — ni `super_admin` ni `admin` de
+> una empresa pueden hacerlo, aunque `manage_users`/`manage_stores` les diga
+> que sí en esta tabla. La restricción real vive en el servidor
+> (`app/api/db/route.ts` rechaza `addDoc` sobre `users`/`stores` si la sesión
+> no tiene `isPlatformOwner: true`), no solo en la UI — así que no hay forma
+> de saltarla llamando el endpoint directo. `manage_users`/`manage_stores`
+> siguen gobernando **editar/desactivar** los que ya existen, eso no cambió.
+
 ### 1.3 Uso en componentes
 
 ```tsx

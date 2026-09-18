@@ -68,9 +68,22 @@ desde antes.
 | `PATCH /api/platform/companies/[id]` | Actualiza `name`/`plan`/`active`/`sunatSettings` de una empresa |
 | `POST /api/platform/companies/[id]/members` | Agrega otra cuenta de login a una empresa ya existente (ej. segundo admin) |
 | `DELETE /api/platform/companies/[id]/members?accountId=X` | Quita el acceso de una cuenta |
+| `POST /api/platform/companies/[id]/stores` | Agrega una tienda a una empresa existente — 10 mesas + inventario base de pizza (mismo shape que `initializeStoreData()`) |
+| `POST /api/platform/companies/[id]/users` | Agrega un usuario operativo (PIN, generado automáticamente) a una empresa existente |
 | `GET /api/platform/stores` | Lista todas las tiendas de todas las empresas |
 | `GET /api/platform/users` | Lista cuentas de login (`auth_accounts`) con su empresa — nunca expone `password_hash` |
 | `GET/POST/PATCH/DELETE /api/platform/plans` | CRUD de planes de suscripción |
+
+### 4.1 Crear tiendas/usuarios es EXCLUSIVO de estas rutas
+
+Desde 2026-09-18, `/admin` (el panel de cada empresa) ya no tiene forma de
+crear tiendas ni usuarios operativos nuevos — los botones se quitaron, y
+`app/api/db/route.ts` rechaza con 403 cualquier `addDoc` sobre las
+colecciones `users`/`stores` si la sesión no tiene `isPlatformOwner: true`,
+sin importar el rol (`super_admin` de empresa incluido). Esto se decidió a
+nivel de negocio: el dueño de la plataforma quiere ser el único punto de alta
+de tiendas/usuarios/cuentas de acceso. `/admin` conserva **editar y
+desactivar** los que ya existen — solo la creación quedó centralizada acá.
 
 Todas devuelven 403 si el JWT no trae `isPlatformOwner: true`.
 
@@ -84,10 +97,12 @@ Todas devuelven 403 si el JWT no trae `isPlatformOwner: true`.
 - `/plataforma/empresas/[id]` — detalle de una empresa:
   - Info general: plan (selector) y activa/inactiva, con guardado.
   - Cuentas de acceso (correo/contraseña): agregar o quitar.
-  - Tiendas de la empresa (solo lectura — se crean desde el `/admin` de la
-    empresa, cuentan contra el límite de su plan).
-  - Usuarios operativos con PIN (solo lectura — se administran desde el
-    `/admin` de la empresa, con su lógica propia de tienda/rol).
+  - Tiendas de la empresa: **agregar** ("10 mesas + inventario de pizza,
+    lista para usar) — cuentan contra el límite de tiendas del plan. Editar
+    una existente sigue siendo cosa del `/admin` de la empresa.
+  - Usuarios operativos con PIN: **agregar** (nombre, rol, tienda — el PIN se
+    genera solo y se muestra una vez). Editar/desactivar uno existente sigue
+    siendo cosa del `/admin` de la empresa.
   - **Conexión SUNAT de esta empresa**: URL base, API Key, API Secret,
     guardados en `companies.sunat_settings` (JSONB). Ver sección 6.
 - `/plataforma/usuarios` — cuentas de login de todas las empresas (vista
