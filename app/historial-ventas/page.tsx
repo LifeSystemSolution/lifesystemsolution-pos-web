@@ -163,7 +163,7 @@ export default function SalesHistoryPage() {
       "Usuario",
     ]
     const rows = filteredOrders.map((order) => [
-      order.tableNumber,
+      order.orderType === "takeout" ? "Para Llevar" : order.tableNumber,
       toPeruDate(order.createdAt).toLocaleDateString("es-PE"),
       toPeruDate(order.createdAt).toLocaleTimeString("es-PE"),
       order.total.toFixed(2),
@@ -386,7 +386,7 @@ export default function SalesHistoryPage() {
                   {filteredOrders.map((order) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">
-                        Mesa {order.tableNumber}
+                        {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
                       </TableCell>
                       <TableCell className="text-sm">
                         {toPeruDate(order.createdAt).toLocaleString("es-PE")}

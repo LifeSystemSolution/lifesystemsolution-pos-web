@@ -6,10 +6,12 @@ import { subscribeToKitchenOrders, updateDocument, collections, sendItemsToKitch
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { cn, toPeruDate } from "@/lib/utils"
-import { Clock, ChefHat, CheckCircle } from "lucide-react"
+import { Clock, ChefHat, CheckCircle, Printer } from "lucide-react"
+import { generateKitchenTicket } from "@/lib/print/receipt-templates"
+import { generatePrintHTML } from "@/lib/print/thermal-printer"
 
 export default function CocinaPage() {
-  const { currentStoreId } = useAuth()
+  const { currentStoreId, currentStore } = useAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -67,6 +69,17 @@ export default function CocinaPage() {
       console.debug("[kitchen:status-change:done]", { orderId, updateData })
     } catch (error) {
       console.error("Error updating order status:", error)
+    }
+  }
+
+  const handlePrintComanda = (order: Order) => {
+    const elements = generateKitchenTicket(order, currentStore || undefined)
+    const html = generatePrintHTML(elements)
+    const printWindow = window.open("", "_blank")
+    if (printWindow) {
+      printWindow.document.write(html)
+      printWindow.document.close()
+      printWindow.print()
     }
   }
 
@@ -196,10 +209,21 @@ export default function CocinaPage() {
                   <div className="flex items-center gap-2">
                     {getStatusIcon(status)}
                     <div>
-                      <p className="font-bold text-sm sm:text-base">Mesa {order.tableNumber}</p>
+                      <p className="font-bold text-sm sm:text-base">
+                        {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
+                      </p>
                       <p className="text-xs opacity-80">{getTimeElapsed(order.createdAt)}</p>
                     </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 flex-shrink-0"
+                    onClick={() => handlePrintComanda(order)}
+                    title="Imprimir comanda"
+                  >
+                    <Printer className="h-4 w-4" />
+                  </Button>
                 </div>
 
                 {/* Order Items */}

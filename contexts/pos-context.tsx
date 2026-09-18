@@ -26,6 +26,7 @@ import {
   getOpenCashRegister,
   type CashRegister,
   createOrderTransaction,
+  createTakeoutOrderTransaction,
   addItemsToOrder,
   processPaymentTransaction,
   getActiveOrderForTable,
@@ -75,7 +76,7 @@ interface POSContextType {
   clearSelectedTable: () => void
   
   // Order actions
-  createOrder: () => Promise<string | null>
+  createOrder: (orderType?: "dine_in" | "takeout") => Promise<string | null>
   updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>
   processPayment: (
     orderId: string,
@@ -383,8 +384,11 @@ export function POSProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Order actions
-  const createOrder = useCallback(async (): Promise<string | null> => {
-    if (!currentStoreId || !selectedTable?.id || !cart || cart.length === 0 || !user) {
+  const createOrder = useCallback(async (orderType: "dine_in" | "takeout" = "dine_in"): Promise<string | null> => {
+    if (!currentStoreId || !cart || cart.length === 0 || !user) {
+      return null
+    }
+    if (orderType === "dine_in" && !selectedTable?.id) {
       return null
     }
 
@@ -411,6 +415,22 @@ export function POSProvider({ children }: { children: ReactNode }) {
         ...(item.flavor ? { flavor: item.flavor } : {}),
       })) as OrderItem[]
       const total = getCartTotal()
+
+      if (orderType === "takeout") {
+        const orderId = await createTakeoutOrderTransaction(
+          currentStoreId,
+          orderItems,
+          total,
+          user.id!,
+          user.name
+        )
+        clearCart()
+        return orderId
+      }
+
+      if (!selectedTable?.id) {
+        return null
+      }
 
       const existingOrder = await getActiveOrderForTable(selectedTable.id)
 

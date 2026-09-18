@@ -205,7 +205,9 @@ export function ClosureSalesModal({ isOpen, onClose, cashClosure }: ClosureSales
                               minute: "2-digit",
                             })}
                           </td>
-                          <td className="py-3 px-3 font-medium">Mesa {order.tableNumber}</td>
+                          <td className="py-3 px-3 font-medium">
+                            {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
+                          </td>
                           <td className={cn(
                             "py-3 px-3 font-medium",
                             getPaymentMethodColor(order.paymentMethod)
@@ -309,7 +311,9 @@ export function ClosureSalesModal({ isOpen, onClose, cashClosure }: ClosureSales
         <Dialog open={showDetail} onOpenChange={setShowDetail}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Detalle de Venta - Mesa {selectedOrder.tableNumber}</DialogTitle>
+              <DialogTitle>
+                Detalle de Venta - {selectedOrder.orderType === "takeout" ? "Para Llevar" : `Mesa ${selectedOrder.tableNumber}`}
+              </DialogTitle>
               <DialogDescription>
                 Información completa del pedido incluyendo items y detalles de pago
               </DialogDescription>

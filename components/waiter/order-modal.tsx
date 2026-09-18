@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 
 interface OrderModalProps {
-  table: Table
+  table?: Table
   onClose: () => void
 }
 
@@ -17,11 +17,12 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
   const { addToCart, createOrder, orders, cart } = usePOS()
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isTakeout = !table
 
   // Find existing order for this table (by tableId for consistency)
-  const existingOrder = orders.find(
-    (o) => o.tableId === table.id && o.paymentStatus === "pending"
-  )
+  const existingOrder = table
+    ? orders.find((o) => o.tableId === table.id && o.paymentStatus === "pending")
+    : undefined
 
   const handleAddProduct = (product: Product, variant?: ProductVariant, pizzaOptions?: { massType: PizzaMassType; flavor?: string; price: number }) => {
     addToCart(product, 1, undefined, variant, pizzaOptions)
@@ -38,7 +39,7 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
     }
 
     try {
-      const orderId = await createOrder()
+      const orderId = await createOrder(isTakeout ? "takeout" : "dine_in")
       if (orderId) {
         onClose()
       } else {
@@ -57,7 +58,9 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border bg-muted/30">
           <div>
-            <h2 className="text-lg sm:text-xl font-bold text-foreground">Mesa {table.number}</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-foreground">
+              {isTakeout ? "Pedido Para Llevar" : `Mesa ${table.number}`}
+            </h2>
             <p className="text-xs sm:text-sm text-muted-foreground">
               {existingOrder ? "Agregar a pedido existente" : "Nuevo pedido"}
             </p>

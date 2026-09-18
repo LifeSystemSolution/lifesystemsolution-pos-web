@@ -48,7 +48,10 @@ export function generateOrderReceipt(
 
   elements.push(
     { type: "text", content: `Pedido #: ${String(order.id || "").substring(0, 5).toUpperCase().padEnd(5, "0")}` },
-    { type: "text", content: `Mesa: ${String(order.tableNumber).padStart(2, "0")}` },
+    {
+      type: "text",
+      content: order.orderType === "takeout" ? "Para Llevar" : `Mesa: ${String(order.tableNumber).padStart(2, "0")}`,
+    },
     { type: "text", content: `${formatReceiptDateTime(order.createdAt)}` }
   )
 

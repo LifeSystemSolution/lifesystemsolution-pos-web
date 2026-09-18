@@ -66,7 +66,7 @@ export function DailySales({ orders }: DailySalesProps) {
     const printContent = `
       <html>
         <head>
-          <title>Recibo - Mesa ${order.tableNumber}</title>
+          <title>Recibo - ${order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
             .header { text-align: center; margin-bottom: 20px; }
@@ -79,7 +79,7 @@ export function DailySales({ orders }: DailySalesProps) {
         <body>
           <div class="header">
             <h2>Recibo de Venta</h2>
-            <p>Mesa ${order.tableNumber}</p>
+            <p>${order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}</p>
             <p>${formatPeruTime(order.createdAt)}</p>
           </div>
           <div class="items">
@@ -117,7 +117,8 @@ export function DailySales({ orders }: DailySalesProps) {
       return
     }
     
-    if (!window.confirm(`¿Estás seguro de que deseas eliminar la venta de la mesa ${order.tableNumber}?`)) {
+    const orderLabel = order.orderType === "takeout" ? "para llevar" : `de la mesa ${order.tableNumber}`
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la venta ${orderLabel}?`)) {
       return
     }
 
@@ -220,7 +221,7 @@ export function DailySales({ orders }: DailySalesProps) {
                     className="border-b border-border hover:bg-muted/50 transition-colors"
                   >
                     <td className="py-3 px-2 font-medium">
-                      Mesa {order.tableNumber}
+                      {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
                     </td>
                     <td className="py-3 px-2 text-muted-foreground flex items-center gap-1">
                       <Clock className="h-3 w-3" />
@@ -280,7 +281,9 @@ export function DailySales({ orders }: DailySalesProps) {
       <Dialog open={showDetail} onOpenChange={setShowDetail}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Detalle de Venta - Mesa {selectedOrder?.tableNumber}</DialogTitle>
+            <DialogTitle>
+              Detalle de Venta - {selectedOrder?.orderType === "takeout" ? "Para Llevar" : `Mesa ${selectedOrder?.tableNumber}`}
+            </DialogTitle>
             <DialogDescription>
               Información completa del pedido y detalles de pago
             </DialogDescription>

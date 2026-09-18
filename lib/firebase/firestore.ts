@@ -1920,6 +1920,7 @@ export async function createOrderTransaction(
     const orderRef = doc(collection(db, collections.orders))
     const orderData = {
       storeId,
+      orderType: "dine_in" as const,
       tableId,
       tableNumber,
       items: cleanItems(items),
@@ -1943,6 +1944,39 @@ export async function createOrderTransaction(
       currentOrderId: orderRef.id,
       updatedAt: serverTimestamp(),
     })
+
+    return orderRef.id
+  })
+}
+
+// Create a takeout order — no table involved, so no table lookup/occupied-check
+// or table-status write (contrast with createOrderTransaction above).
+export async function createTakeoutOrderTransaction(
+  storeId: string,
+  items: OrderItem[],
+  total: number,
+  userId: string,
+  userName: string
+): Promise<string> {
+  return runTransaction(db, async (transaction) => {
+    const orderRef = doc(collection(db, collections.orders))
+    const orderData = {
+      storeId,
+      orderType: "takeout" as const,
+      items: cleanItems(items),
+      total,
+      status: "open" as const,
+      paymentStatus: "pending" as const,
+      userId,
+      userName,
+      createdAt: serverTimestamp(),
+    }
+
+    // Reads must come before writes in a transaction — inventory deduction
+    // reads inventory docs, so it runs before the order write below.
+    await deductInventoryInTransaction(transaction, storeId, items)
+
+    transaction.set(orderRef, orderData)
 
     return orderRef.id
   })

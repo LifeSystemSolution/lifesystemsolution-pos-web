@@ -697,7 +697,9 @@ export default function CajaPage() {
               >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xl font-bold">Mesa {order.tableNumber}</span>
+                    <span className="text-xl font-bold">
+                      {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
+                    </span>
                     <span className="text-xl font-bold text-primary">
                       S/ {order.total.toFixed(2)}
                     </span>
@@ -726,8 +728,12 @@ export default function CajaPage() {
                 {/* Order Summary with edit capabilities */}
                 <div className="space-y-3 bg-muted/30 p-4 rounded-lg">
                   <div className="flex justify-between items-center pb-3 border-b border-border">
-                    <span className="text-muted-foreground">Mesa</span>
-                    <span className="font-bold text-xl">{selectedOrder.tableNumber}</span>
+                    <span className="text-muted-foreground">
+                      {selectedOrder.orderType === "takeout" ? "Pedido" : "Mesa"}
+                    </span>
+                    <span className="font-bold text-xl">
+                      {selectedOrder.orderType === "takeout" ? "Para Llevar" : selectedOrder.tableNumber}
+                    </span>
                   </div>
                   
                   {selectedOrder.paymentStatus === "paid" && (
@@ -1425,8 +1431,8 @@ export default function CajaPage() {
               
               <div className="border-t border-dashed border-border py-3 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Mesa</span>
-                  <span>{lastProcessedOrder.tableNumber}</span>
+                  <span>{lastProcessedOrder.orderType === "takeout" ? "Pedido" : "Mesa"}</span>
+                  <span>{lastProcessedOrder.orderType === "takeout" ? "Para Llevar" : lastProcessedOrder.tableNumber}</span>
                 </div>
                 {lastProcessedOrder.items.map((item, index) => (
                   <div key={index} className="flex justify-between text-sm">
