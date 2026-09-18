@@ -15,19 +15,20 @@ import Image from "next/image"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { 
+  const {
     isFirebaseAuthenticated,
+    isPlatformOwner,
     firebaseLogin,
     firebaseAccessibleStores,
-    login, 
-    loginSuperAdmin, 
-    selectStore, 
-    isLoading, 
-    error, 
-    user, 
-    needsStoreSelection, 
+    login,
+    loginSuperAdmin,
+    selectStore,
+    isLoading,
+    error,
+    user,
+    needsStoreSelection,
     availableStores,
-    store 
+    store
   } = useAuth()
   
   const [stores, setStores] = useState<Store[]>([])
@@ -73,6 +74,14 @@ export default function LoginPage() {
       loadUserStores()
     }
   }, [user, loginMode])
+
+  // El dueño de la plataforma nunca pasa por PIN/selección de tienda — entra
+  // directo a /plataforma apenas termina el login de correo/contraseña.
+  useEffect(() => {
+    if (isFirebaseAuthenticated && isPlatformOwner) {
+      router.push("/plataforma")
+    }
+  }, [isFirebaseAuthenticated, isPlatformOwner, router])
 
   // Redirect when user is logged in and has selected a store
   useEffect(() => {
@@ -246,6 +255,16 @@ export default function LoginPage() {
           </p>
         </div>
       </main>
+    )
+  }
+
+  // Dueño de la plataforma: la redirección corre en el useEffect de arriba,
+  // acá solo se evita el parpadeo de la pantalla de PIN mientras navega.
+  if (isPlatformOwner) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Spinner className="h-12 w-12 text-primary" />
+      </div>
     )
   }
 

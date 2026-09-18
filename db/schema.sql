@@ -39,11 +39,16 @@ CREATE TABLE IF NOT EXISTS auth_accounts (
 -- Empresas clientes del SaaS. Antes de esto, "stores" era un pool plano sin
 -- ningún nivel superior — este es el nivel que faltaba.
 CREATE TABLE IF NOT EXISTS companies (
-  id          TEXT PRIMARY KEY,
-  name        TEXT NOT NULL,
-  plan        TEXT NOT NULL DEFAULT 'trial',
-  active      BOOLEAN NOT NULL DEFAULT true,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  id              TEXT PRIMARY KEY,
+  name            TEXT NOT NULL,
+  plan            TEXT NOT NULL DEFAULT 'trial',
+  active          BOOLEAN NOT NULL DEFAULT true,
+  -- Config de facturación SUNAT propia de esta empresa (cada una tiene su
+  -- propio RUC/credenciales) — { baseUrl, apiKey, apiSecret, configured }.
+  -- Ver docs/PLATFORM_OWNER.md: todavía no está conectada a
+  -- app/api/facturacion/route.ts, que sigue usando env vars globales.
+  sunat_settings  JSONB,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Qué cuenta de login pertenece a qué empresa. Es la ÚNICA consulta del

@@ -1,0 +1,13 @@
+-- Config de SUNAT por empresa (cada empresa tiene su propio RUC / serie /
+-- credenciales de facturación electrónica — no se puede compartir una sola
+-- config global entre empresas distintas). Vive en `companies` porque, igual
+-- que `plan`, es metadata de la empresa, no un documento de negocio.
+--
+-- Forma del JSON (todo opcional, se llena desde /plataforma/empresas/[id]):
+--   { "baseUrl": "...", "apiKey": "...", "apiSecret": "...", "configured": true }
+--
+-- Todavía NO está conectado a app/api/facturacion/route.ts (que sigue leyendo
+-- SUNAT_API_BASE_URL/KEY/SECRET de las variables de entorno globales) — eso
+-- se deja para una siguiente etapa a propósito. Por ahora esto solo guarda
+-- el dato para cuando se decida cómo activarlo por empresa.
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS sunat_settings JSONB;
