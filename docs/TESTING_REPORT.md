@@ -28,6 +28,7 @@ confirmar que el estado persistido es correcto y no solo lo que muestra la panta
 | Pedido para llevar (takeout) | ✅ Verificado end-to-end | 1 (corregido: pago bloqueado — ver docs/PENDING_FEATURES.md) |
 | Comanda de cocina (ticketera) | ✅ Botón funciona sin errores | Impresión real no verificable en este entorno de prueba (bloqueo de pop-ups del sandbox) — ver docs/PENDING_FEATURES.md |
 | Notas/alergias por ítem | ✅ Verificado end-to-end | — |
+| Panel de plataforma (`/plataforma`) | ✅ Verificado end-to-end | 1 (corregido: alias de producción apuntaba a un deployment viejo — ver sección 11) |
 
 ---
 
@@ -207,7 +208,46 @@ tanto:
 consulta de estado (`GET /api/facturacion?tipo=...&id=...`), notas de crédito, y
 verificar que los códigos de error de SUNAT se muestren de forma clara al cajero.
 
-## 10. No probado aún en esta ronda
+## 11. Panel de plataforma (`/plataforma`)
+
+Probado end-to-end contra producción, con la cuenta real del dueño de la
+plataforma (`acc_johann`, sesión emitida directamente con la misma clave que
+usa el servidor — nunca se tocó ni se pidió su contraseña real):
+
+- **Login redirige directo a `/plataforma`**, sin pasar por PIN ni selección
+  de tienda — confirmado visualmente.
+- **Crear empresa**: se creó "Restaurante Prueba QA" de punta a punta —
+  verificado en la base de datos que se creó `companies`, `auth_accounts` +
+  `company_members` (login), una `store` y un `user` operativo (PIN admin),
+  los cuatro atómicamente.
+- **Aislamiento verificado con un login real**: se inició sesión con las
+  credenciales del admin recién creado (`admin@restauranteprueba.com`, vía
+  `POST /api/auth/login` real, no simulado) y se confirmó que:
+  - Solo ve su propia tienda ("Sede Central"), ninguna de las otras 3 tiendas
+    de LifeSystemSolution.
+  - `GET /api/platform/companies` con su token responde 403 — no puede
+    acceder a rutas de plataforma aunque conozca las URLs.
+- **Cuentas de acceso**: se agregó una segunda cuenta de login a la misma
+  empresa — apareció correctamente en la tabla.
+- **Config SUNAT por empresa**: se guardó una config de prueba
+  (`companies.sunat_settings`), el badge cambió de "Sin configurar" a
+  "Configurado" correctamente.
+- Empresa de prueba eliminada al terminar (documents + company_members +
+  auth_accounts + companies) — no quedó rastro en producción.
+
+**Bug encontrado y corregido**: el primer intento de "Crear empresa" devolvió
+404 en el `POST` — el dominio de producción (`lifesystemsolution-pos-web.vercel.app`)
+estaba apuntando (alias) a un deployment más viejo que no incluía esa ruta,
+a pesar de que el deploy más reciente figuraba "Ready". Causa: la cola de
+deployments de Vercel se comportó de forma errática durante esta sesión
+(deployments quedaban "Queued" indefinidamente, algunos se cancelaron solos).
+Se corrigió con `vercel deploy --prod --force`, que reconstruyó desde el
+código actual y realiasó explícitamente el dominio de producción — confirmado
+con `vercel inspect` mostrando el alias apuntando al build correcto antes de
+reintentar. Si vuelve a pasar: `vercel ls` para ver el estado de la cola,
+`vercel deploy --prod --force` para forzar un build limpio y realiasar.
+
+## 12. No probado aún en esta ronda
 
 - Ajustes manuales de inventario.
 - Gestión de proveedores / pago a proveedores.
@@ -215,3 +255,6 @@ verificar que los códigos de error de SUNAT se muestren de forma clara al cajer
 - Distribución de efectivo al cierre (caja fuerte / caja principal) — se vio el modal
   "Confirmar Distribución" de pasada pero no se completó un test dedicado.
 - Reportes / `/dashboard` en profundidad más allá del bloque SUNAT.
+- Botón "Guardar cambios" de plan/estado en `/plataforma/empresas/[id]` (usa el
+  mismo endpoint PATCH ya verificado para SUNAT, pero no se probó ese caso puntual).
+- Quitar una cuenta de acceso (`DELETE .../members`) — implementado, no probado en vivo.
