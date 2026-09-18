@@ -78,6 +78,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   mesero: [
     "create_orders",
     "view_menu",
+    // No "manage_kitchen": el mesero no prepara pedidos, solo retira los que
+    // ya están listos (ve /cocina para marcar "Entregado", nada más).
+    "view_kitchen",
   ],
   cocina: [
     "view_menu",

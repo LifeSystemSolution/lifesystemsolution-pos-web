@@ -38,7 +38,7 @@ type Permission =
 | create_orders | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | view_menu | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | manage_menu | ✓ | ✓ | ✓ | | | |
-| view_kitchen | ✓ | ✓ | ✓ | ✓ | | ✓ |
+| view_kitchen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | manage_kitchen | ✓ | ✓ | ✓ | | | ✓ |
 | access_admin_panel | ✓ | ✓ | ✓ | | | |
 
@@ -124,3 +124,31 @@ enviar solo los items nuevos a cocina cuando se agregan productos a un pedido ya
 abierto, sin reimprimir/reenviar lo que ya se preparó. La comanda de cocina filtra
 por items con `sentAt` nulo (ver [PRINT_SYSTEM.md](./PRINT_SYSTEM.md) para el
 formato del ticket).
+
+## 4. Flujo de cocina (`/cocina`) — 2026-09-18
+
+Diseñado para que el cocinero interactúe con la pantalla lo mínimo posible (pedido
+explícito del negocio: no quieren que estén tocando un monitor constantemente).
+
+1. **Pendiente → Preparando: lo dispara imprimir la comanda**, no un botón aparte.
+   El botón de impresora en la tarjeta del pedido (columna "Pendientes") imprime el
+   ticket Y transición el pedido a "Preparando" en el mismo click
+   (`handlePrintComanda` en `app/cocina/page.tsx`). Reimprimir una comanda que ya
+   está en Preparando o Lista no cambia su estado.
+2. **Preparando → Listo: automático a los ~10 minutos.** Un timer en el cliente
+   (`AUTO_READY_MS`, `app/cocina/page.tsx`) revisa cada 15s los pedidos en
+   "Preparando" y los pasa solo a "Listo" cuando el más antiguo de sus items sin
+   preparar (`item.sentAt`) supera los 10 minutos. La tarjeta muestra una cuenta
+   regresiva ("Listo automáticamente en ~X min"). Cocina/admin conservan un botón
+   "Listo (adelantar)" para el caso en que la comida esté lista antes — el mesero no
+   ve este botón.
+3. **Listo → Entregado: lo marca el mesero**, no el cocinero — es quien físicamente
+   retira el pedido de cocina para llevarlo a la mesa/cliente. El botón "Entregado"
+   solo aparece para roles `mesero`/`admin`/`admin_global`/`super_admin` (no para
+   `cocina` puro — ve el mensaje "Esperando que el mesero lo retire" en su lugar).
+   Al marcar, se guarda `deliveredAt`/`deliveredBy`/`deliveredByName` en el pedido
+   — es el registro de quién entregó qué y cuándo.
+
+Por esto el mesero ahora tiene acceso a `/cocina` (permiso `view_kitchen`, sin
+`manage_kitchen` — ver matriz arriba): solo puede ver y marcar "Entregado", no
+tocar los pasos de preparación.

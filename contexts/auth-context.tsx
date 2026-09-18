@@ -437,7 +437,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAdmin: user?.role === "admin" || user?.role === "admin_global" || user?.role === "super_admin",
     isCajero: user?.role === "cajero" || user?.role === "admin" || user?.role === "admin_global" || user?.role === "super_admin",
     isMesero: user?.role === "mesero" || user?.role === "admin" || user?.role === "admin_global" || user?.role === "super_admin",
-    isCocina: user?.role === "cocina" || user?.role === "admin" || user?.role === "admin_global" || user?.role === "super_admin",
+    // El mesero también entra a /cocina — ahí retira los pedidos listos y
+    // marca "Entregado" (ver docs/BUSINESS_RULES.md, flujo de cocina).
+    isCocina: user?.role === "cocina" || user?.role === "mesero" || user?.role === "admin" || user?.role === "admin_global" || user?.role === "super_admin",
 
     // Permission helpers
     hasPermission: (permission: Permission) => hasPermission(user, permission),

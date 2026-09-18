@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { subscribeToKitchenOrders, updateDocument, collections, sendItemsToKitchen, type Order } from "@/lib/firebase/firestore"
 import { Button } from "@/components/ui/button"
@@ -10,10 +10,21 @@ import { Clock, ChefHat, CheckCircle, Printer } from "lucide-react"
 import { generateKitchenTicket } from "@/lib/print/receipt-templates"
 import { generatePrintHTML } from "@/lib/print/thermal-printer"
 
+// Tiempo estimado de preparación: pasado esto, un pedido "Preparando" pasa
+// solo a "Listo" sin que nadie tenga que tocar la pantalla — ver
+// docs/BUSINESS_RULES.md. El botón manual sigue disponible para cocina/admin
+// como adelanto (comida lista antes de tiempo), nunca para el mesero.
+const AUTO_READY_MS = 10 * 60 * 1000
+
 export default function CocinaPage() {
-  const { currentStoreId, currentStore } = useAuth()
+  const { currentStoreId, currentStore, user } = useAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  // El cocinero prepara y marca listo (o lo hace la app sola); el mesero solo
+  // retira de cocina y marca "Entregado". Admins pueden hacer ambas cosas.
+  const canManagePrep = user?.role !== "mesero"
+  const canDeliver = user?.role !== "cocina"
 
   useEffect(() => {
     if (!currentStoreId) return
@@ -65,12 +76,76 @@ export default function CocinaPage() {
           })
         }
       }
+      // El mesero (o admin) que retira el pedido de cocina queda registrado —
+      // es el "registro de lo que entregó y lo que no" que pidió el negocio.
+      if (newStatus === "delivered") {
+        updateData.deliveredAt = new Date()
+        updateData.deliveredBy = user?.id
+        updateData.deliveredByName = user?.name
+      }
       await updateDocument(collections.orders, orderId, updateData)
       console.debug("[kitchen:status-change:done]", { orderId, updateData })
     } catch (error) {
       console.error("Error updating order status:", error)
     }
   }
+
+  // Transición automática Preparando → Listo, sin que nadie tenga que tocar
+  // la pantalla: cuenta desde que se enviaron los items a cocina (sentAt).
+  const autoMarkReady = async (order: Order) => {
+    try {
+      const updateData: any = { status: "ready", readyAt: new Date() }
+      if (order.items?.length) {
+        updateData.items = order.items.map((item) => {
+          if (item.cancelled) return item
+          if (item.sentAt && !item.readyAt) return { ...item, readyAt: new Date() }
+          return item
+        })
+      }
+      await updateDocument(collections.orders, order.id!, updateData)
+      console.debug("[kitchen:auto-ready]", { orderId: order.id })
+    } catch (error) {
+      console.error("Error auto-marking order ready:", error)
+    }
+  }
+
+  // Ref con los pedidos más recientes: el interval de abajo corre una sola
+  // vez (deps vacíos) y necesita leer el estado actual sin quedarse con una
+  // versión vieja capturada en el closure.
+  const ordersRef = useRef<Order[]>(orders)
+  useEffect(() => {
+    ordersRef.current = orders
+  }, [orders])
+
+  const autoAdvancingRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now()
+      for (const order of ordersRef.current) {
+        if (order.status !== "preparing" || !order.id) continue
+        if (autoAdvancingRef.current.has(order.id)) continue
+
+        const unreadyItems = (order.items || []).filter(
+          (item) => !item.cancelled && item.sentAt && !item.readyAt
+        )
+        if (unreadyItems.length === 0) continue
+
+        const sentTimes = unreadyItems
+          .map((item) => (item.sentAt as any)?.toMillis?.())
+          .filter((ms: unknown): ms is number => typeof ms === "number")
+        if (sentTimes.length === 0) continue
+
+        const earliestSentAt = Math.min(...sentTimes)
+        if (now - earliestSentAt >= AUTO_READY_MS) {
+          const orderId = order.id
+          autoAdvancingRef.current.add(orderId)
+          autoMarkReady(order).finally(() => autoAdvancingRef.current.delete(orderId))
+        }
+      }
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handlePrintComanda = (order: Order) => {
     const elements = generateKitchenTicket(order, currentStore || undefined)
@@ -80,6 +155,13 @@ export default function CocinaPage() {
       printWindow.document.write(html)
       printWindow.document.close()
       printWindow.print()
+    }
+    // Imprimir la comanda ES la señal de "empecé a preparar" — reemplaza el
+    // click manual de "Preparar" (ver docs/BUSINESS_RULES.md). Solo aplica
+    // al imprimir desde la columna de Pendientes; reimprimir una comanda ya
+    // en preparación o lista no debe tocar su estado.
+    if (order.status === "open" && order.id) {
+      handleStatusChange(order.id, "preparing")
     }
   }
 
@@ -141,6 +223,22 @@ export default function CocinaPage() {
     const hours = Math.floor(diffMins / 60)
     const mins = diffMins % 60
     return `${hours}h ${mins}m`
+  }
+
+  // Cuenta regresiva visible hasta el paso automático a "Listo" — así el
+  // equipo entiende por qué un pedido cambia de estado solo.
+  const getAutoReadyHint = (order: Order) => {
+    const unreadyItems = (order.items || []).filter((item) => !item.cancelled && item.sentAt && !item.readyAt)
+    if (unreadyItems.length === 0) return ""
+    const sentTimes = unreadyItems
+      .map((item) => (item.sentAt as any)?.toMillis?.())
+      .filter((ms: unknown): ms is number => typeof ms === "number")
+    if (sentTimes.length === 0) return ""
+    const earliestSentAt = Math.min(...sentTimes)
+    const remainingMs = AUTO_READY_MS - (Date.now() - earliestSentAt)
+    if (remainingMs <= 0) return "Pasando a Listo…"
+    const remainingMin = Math.ceil(remainingMs / 60000)
+    return `Listo automáticamente en ~${remainingMin} min`
   }
 
   if (isLoading) {
@@ -256,31 +354,40 @@ export default function CocinaPage() {
                 {/* Order Actions */}
                 <div className="p-2 sm:p-3 border-t border-current/20 bg-background/30">
                   {status === "open" && (
-                    <Button
-                      className="w-full h-9 text-xs sm:text-sm bg-secondary hover:bg-secondary/90 text-secondary-foreground"
-                      onClick={() => handleStatusChange(order.id!, "preparing")}
-                    >
-                      <ChefHat className="h-4 w-4 mr-1" />
-                      Preparar
-                    </Button>
+                    <p className="text-xs text-center text-muted-foreground py-1">
+                      Imprime la comanda para empezar a preparar
+                    </p>
                   )}
                   {status === "preparing" && (
-                    <Button
-                      className="w-full h-9 text-xs sm:text-sm bg-green-500 hover:bg-green-500/90 text-white dark:text-white"
-                      onClick={() => handleStatusChange(order.id!, "ready")}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Listo
-                    </Button>
+                    <>
+                      <p className="text-xs text-center text-muted-foreground mb-2">
+                        {getAutoReadyHint(order)}
+                      </p>
+                      {canManagePrep && (
+                        <Button
+                          className="w-full h-9 text-xs sm:text-sm bg-green-500 hover:bg-green-500/90 text-white dark:text-white"
+                          onClick={() => handleStatusChange(order.id!, "ready")}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Listo (adelantar)
+                        </Button>
+                      )}
+                    </>
                   )}
                   {status === "ready" && (
-                    <Button
-                      className="w-full h-9 text-xs sm:text-sm bg-blue-500 hover:bg-blue-500/90 text-white dark:text-white"
-                      onClick={() => handleStatusChange(order.id!, "delivered")}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Entregado
-                    </Button>
+                    canDeliver ? (
+                      <Button
+                        className="w-full h-9 text-xs sm:text-sm bg-blue-500 hover:bg-blue-500/90 text-white dark:text-white"
+                        onClick={() => handleStatusChange(order.id!, "delivered")}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Entregado
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-center text-muted-foreground py-1">
+                        Esperando que el mesero lo retire
+                      </p>
+                    )
                   )}
                 </div>
               </div>

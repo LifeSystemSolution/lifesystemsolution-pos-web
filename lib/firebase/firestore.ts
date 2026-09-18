@@ -183,6 +183,9 @@ export interface Order {
   cancelReason?: string
   deleted?: boolean
   readyAt?: FirestoreDate
+  deliveredAt?: FirestoreDate
+  deliveredBy?: string // userId de quien retiró el pedido de cocina (normalmente el mesero)
+  deliveredByName?: string
   totalAmount?: number
 }
 
