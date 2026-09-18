@@ -30,6 +30,9 @@
 - **[FINANCIAL_RULES.md](./FINANCIAL_RULES.md)** — Tipos de caja (operativa,
   principal, fuerte), categorías de gasto, funciones transaccionales obligatorias
   para operaciones de dinero, reglas de auditoría.
+- **[PLATFORM_OWNER.md](./PLATFORM_OWNER.md)** — Panel `/plataforma` del dueño del
+  SaaS: cómo ve datos de todas las empresas sin romper el aislamiento entre ellas,
+  planes de suscripción, qué falta para facturación real.
 
 ## Estado actual del sistema
 

@@ -26,10 +26,14 @@
 -- password_hash con scrypt (node:crypto, sin dependencias nativas) — mismo
 -- esquema que usaba lifesystem-pos-desktop en master_accounts.
 CREATE TABLE IF NOT EXISTS auth_accounts (
-  id             TEXT PRIMARY KEY,
-  email          TEXT UNIQUE NOT NULL,
-  password_hash  TEXT NOT NULL,
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                  TEXT PRIMARY KEY,
+  email               TEXT UNIQUE NOT NULL,
+  password_hash       TEXT NOT NULL,
+  -- Dueño de la plataforma SaaS (no de una empresa): puede ver info agregada
+  -- de TODAS las empresas en /plataforma. Nunca se autoasigna desde la API,
+  -- solo a mano en la base de datos. Ver política RLS más abajo.
+  is_platform_owner   BOOLEAN NOT NULL DEFAULT false,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Empresas clientes del SaaS. Antes de esto, "stores" era un pool plano sin
@@ -98,13 +102,39 @@ CREATE INDEX IF NOT EXISTS documents_data_gin_idx ON documents USING gin (data);
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE documents FORCE ROW LEVEL SECURITY;
 
+-- La segunda condición (app.is_platform_owner) es la excepción deliberada:
+-- la setea withPlatformOwnerScope() (lib/local/pg-client.ts), alcanzable
+-- solo desde rutas /api/platform/* que ya verificaron en el servidor que
+-- session.isPlatformOwner === true. Ningún usuario normal (admin, cajero,
+-- mesero, cocina) puede setear esa variable — para ellos solo existe
+-- app.company_id, así que la aislación entre empresas no cambia en nada.
 CREATE POLICY documents_company_isolation ON documents
-  USING (company_id = current_setting('app.company_id', true))
-  WITH CHECK (company_id = current_setting('app.company_id', true));
+  USING (
+    company_id = current_setting('app.company_id', true)
+    OR current_setting('app.is_platform_owner', true) = 'true'
+  )
+  WITH CHECK (
+    company_id = current_setting('app.company_id', true)
+    OR current_setting('app.is_platform_owner', true) = 'true'
+  );
 
 -- companies: solo el backend con privilegios de servidor la toca (alta de
 -- empresas nuevas, panel de ustedes como dueños de la plataforma) — sin RLS
 -- por ahora, no se expone directo al cliente.
+
+-- Planes de suscripción del SaaS (nombre, máximo de sedes, costo mensual).
+-- Igual que `companies`: sin RLS, solo accesible vía /api/platform/*.
+CREATE TABLE IF NOT EXISTS plans (
+  id             TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  max_stores     INTEGER NOT NULL,
+  price_monthly  NUMERIC(10, 2),
+  currency       TEXT NOT NULL DEFAULT 'PEN',
+  active         BOOLEAN NOT NULL DEFAULT true,
+  description    TEXT,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- Habilita Supabase Realtime (postgres_changes) sobre esta tabla. El relay
 -- que reemplaza a onSnapshot (ver plan) escucha esto con la service role key

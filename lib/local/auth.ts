@@ -34,7 +34,7 @@ function getJwtSecret(): string {
   return secret
 }
 
-export type SessionPayload = { accountId: string; email: string }
+export type SessionPayload = { accountId: string; email: string; isPlatformOwner?: boolean }
 
 /** Emite el token de sesión que el navegador guarda y manda en cada request (Authorization: Bearer). */
 export function issueSessionToken(payload: SessionPayload): string {
@@ -46,7 +46,7 @@ export function verifySessionToken(token: string): SessionPayload | null {
   try {
     const decoded = jwt.verify(token, getJwtSecret())
     if (typeof decoded === "string") return null
-    return { accountId: decoded.accountId, email: decoded.email }
+    return { accountId: decoded.accountId, email: decoded.email, isPlatformOwner: !!decoded.isPlatformOwner }
   } catch {
     return null
   }

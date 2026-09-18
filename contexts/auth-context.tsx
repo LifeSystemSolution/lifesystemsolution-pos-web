@@ -38,6 +38,7 @@ interface AuthContextType {
   // Paso 1: login propio (correo/contraseña), persistente entre refrescos.
   firebaseUser: AuthAccount | null
   isFirebaseAuthenticated: boolean
+  isPlatformOwner: boolean
   // true mientras se intenta restaurar la sesión guardada al montar — los
   // layouts deben esperar a que esto sea false antes de redirigir a "/" por
   // estado vacío (ver el comentario largo junto a useState(isRestoring)).
@@ -115,6 +116,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Paso 1 (login propio, ver app/api/auth/login)
   const [firebaseUser, setFirebaseUser] = useState<AuthAccount | null>(null)
   const [isFirebaseAuthenticated, setIsFirebaseAuthenticated] = useState(false)
+  // Dueño de la plataforma SaaS (auth_accounts.is_platform_owner) — no tiene
+  // relación con el rol PIN-based (admin/cajero/...) de más abajo. Habilita
+  // /plataforma, ver docs/BUSINESS_RULES.md.
+  const [isPlatformOwner, setIsPlatformOwner] = useState(false)
 
   // PIN-based user
   const [user, setUser] = useState<User | null>(null)
@@ -153,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const accountUser: AuthAccount = { uid: session.accountId, email: session.email }
     setFirebaseUser(accountUser)
     setIsFirebaseAuthenticated(true)
+    setIsPlatformOwner(!!session.isPlatformOwner)
     ;(async () => {
      try {
       try {
@@ -226,9 +232,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false
       }
 
-      setStoredSession({ token: json.token, accountId: json.accountId, email: json.email })
+      setStoredSession({ token: json.token, accountId: json.accountId, email: json.email, isPlatformOwner: json.isPlatformOwner })
       setFirebaseUser({ uid: json.accountId, email: json.email })
       setIsFirebaseAuthenticated(true)
+      setIsPlatformOwner(!!json.isPlatformOwner)
 
       try {
         const stores = await getAllStores()
@@ -390,6 +397,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearStoredSession()
       setFirebaseUser(null)
       setIsFirebaseAuthenticated(false)
+      setIsPlatformOwner(false)
       setUser(null)
       setStore(null)
       setCurrentStoreId(null)
@@ -408,6 +416,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextType = {
     firebaseUser,
     isFirebaseAuthenticated,
+    isPlatformOwner,
     isRestoring,
     firebaseLogin,
     firebaseLogout: logout,

@@ -19,8 +19,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Faltan correo y/o contraseña" }, { status: 400 })
   }
 
-  const { rows } = await getPool().query<{ id: string; email: string; password_hash: string }>(
-    `SELECT id, email, password_hash FROM auth_accounts WHERE email = $1`,
+  const { rows } = await getPool().query<{ id: string; email: string; password_hash: string; is_platform_owner: boolean }>(
+    `SELECT id, email, password_hash, is_platform_owner FROM auth_accounts WHERE email = $1`,
     [String(email).toLowerCase().trim()]
   )
   const account = rows[0]
@@ -30,6 +30,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Correo o contraseña incorrectos" }, { status: 401 })
   }
 
-  const token = issueSessionToken({ accountId: account.id, email: account.email })
-  return NextResponse.json({ token, accountId: account.id, email: account.email })
+  const token = issueSessionToken({
+    accountId: account.id,
+    email: account.email,
+    isPlatformOwner: account.is_platform_owner,
+  })
+  return NextResponse.json({
+    token,
+    accountId: account.id,
+    email: account.email,
+    isPlatformOwner: account.is_platform_owner,
+  })
 }

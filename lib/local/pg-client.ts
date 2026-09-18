@@ -96,3 +96,30 @@ export async function withCompanyScope<T>(
     client.release()
   }
 }
+
+/**
+ * Para rutas /api/platform/* que YA verificaron `session.isPlatformOwner ===
+ * true` en el servidor. Setea `app.is_platform_owner`, la segunda condición
+ * de la política RLS de `documents` (ver db/schema.sql) — dejar pasar
+ * cualquier fila sin importar su `company_id`. Nunca llamar esto con datos
+ * de sesión no verificados: es la única forma de ver a través de todas las
+ * empresas a la vez.
+ */
+export async function withPlatformOwnerScope<T>(
+  fn: (client: import("pg").PoolClient) => Promise<T>
+): Promise<T> {
+  const pool = getPool()
+  const client = await pool.connect()
+  try {
+    await client.query("BEGIN")
+    await client.query(`SELECT set_config('app.is_platform_owner', 'true', true)`)
+    const result = await fn(client)
+    await client.query("COMMIT")
+    return result
+  } catch (err) {
+    await client.query("ROLLBACK")
+    throw err
+  } finally {
+    client.release()
+  }
+}

@@ -21,7 +21,7 @@ interface POSHeaderProps {
 }
 
 export function POSHeader({ title }: POSHeaderProps) {
-  const { user, store, logout, isAdmin, isSuperAdmin, isCajero, isMesero, isCocina, changeStore } = useAuth()
+  const { user, store, logout, isAdmin, isSuperAdmin, isCajero, isMesero, isCocina, isPlatformOwner, changeStore } = useAuth()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
@@ -136,6 +136,14 @@ export function POSHeader({ title }: POSHeaderProps) {
               </Button>
             </Link>
           )}
+          {isPlatformOwner && (
+            <Link href="/plataforma">
+              <Button variant="ghost" size="sm" className="gap-2 text-primary">
+                <Building2 className="h-4 w-4" />
+                Plataforma
+              </Button>
+            </Link>
+          )}
         </nav>
 
         {/* User Menu and Theme Toggle */}
@@ -223,6 +231,14 @@ export function POSHeader({ title }: POSHeaderProps) {
                     <Link href="/comprobantes" className="gap-2">
                       <Receipt className="h-4 w-4" />
                       Comprobantes
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                {isPlatformOwner && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/plataforma" className="gap-2">
+                      <Building2 className="h-4 w-4" />
+                      Plataforma
                     </Link>
                   </DropdownMenuItem>
                 )}

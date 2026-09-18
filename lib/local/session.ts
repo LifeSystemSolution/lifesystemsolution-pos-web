@@ -9,7 +9,7 @@
  */
 const STORAGE_KEY = "lss_session"
 
-export type StoredSession = { token: string; accountId: string; email: string }
+export type StoredSession = { token: string; accountId: string; email: string; isPlatformOwner?: boolean }
 
 export function getStoredSession(): StoredSession | null {
   if (typeof window === "undefined") return null
