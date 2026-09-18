@@ -1,8 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import { usePOS } from "@/contexts/pos-context"
 import { Button } from "@/components/ui/button"
-import { Minus, Plus, Trash2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Minus, Plus, Trash2, MessageSquarePlus } from "lucide-react"
 import { calculateItemTotal } from "@/lib/utils"
 
 interface CartProps {
@@ -11,7 +13,8 @@ interface CartProps {
 }
 
 export function Cart({ onSendOrder, isSending }: CartProps) {
-  const { cart, getCartTotal, updateCartItemQuantity, removeFromCart, clearCart } = usePOS()
+  const { cart, getCartTotal, updateCartItemQuantity, updateCartItemNotes, removeFromCart, clearCart } = usePOS()
+  const [editingNotesFor, setEditingNotesFor] = useState<string | null>(null)
 
   if (cart.length === 0) {
     return (
@@ -46,58 +49,86 @@ export function Cart({ onSendOrder, isSending }: CartProps) {
         {cart.map((item) => (
           <div
             key={item.tempId}
-            className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border"
+            className="p-3 rounded-lg bg-muted/30 border border-border space-y-2"
           >
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm text-foreground truncate">
-                {item.productName}
-                {item.variantName && (
-                  <span className="text-muted-foreground font-normal"> - {item.variantName}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm text-foreground truncate">
+                  {item.productName}
+                  {item.variantName && (
+                    <span className="text-muted-foreground font-normal"> - {item.variantName}</span>
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  S/ {item.price.toFixed(2)} c/u
+                </p>
+                {item.notes && editingNotesFor !== item.tempId && (
+                  <p className="text-xs text-secondary mt-1 truncate">Nota: {item.notes}</p>
                 )}
+              </div>
+
+              {/* Quantity Controls */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 sm:h-7 sm:w-7"
+                  onClick={() => updateCartItemQuantity(item.tempId, item.quantity - 1)}
+                >
+                  <Minus className="h-3 w-3" />
+                </Button>
+                <span className="w-8 text-center font-medium text-sm">{item.quantity}</span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 sm:h-7 sm:w-7"
+                  onClick={() => updateCartItemQuantity(item.tempId, item.quantity + 1)}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+
+              {/* Notes Toggle */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-8 w-8 sm:h-7 sm:w-7 ${item.notes ? "text-secondary" : "text-muted-foreground"}`}
+                onClick={() => setEditingNotesFor(editingNotesFor === item.tempId ? null : item.tempId)}
+                title="Nota o alergia"
+              >
+                <MessageSquarePlus className="h-3.5 w-3.5" />
+              </Button>
+
+              {/* Remove Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 sm:h-7 sm:w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => removeFromCart(item.tempId)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+
+              {/* Item Total */}
+              <p className="w-16 text-right font-semibold text-sm text-primary">
+                S/ {calculateItemTotal(item.price, item.quantity)}
               </p>
-              <p className="text-xs text-muted-foreground">
-                S/ {item.price.toFixed(2)} c/u
-              </p>
-              {item.notes && (
-                <p className="text-xs text-secondary mt-1 truncate">Nota: {item.notes}</p>
-              )}
             </div>
 
-            {/* Quantity Controls */}
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 sm:h-7 sm:w-7"
-                onClick={() => updateCartItemQuantity(item.tempId, item.quantity - 1)}
-              >
-                <Minus className="h-3 w-3" />
-              </Button>
-              <span className="w-8 text-center font-medium text-sm">{item.quantity}</span>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 sm:h-7 sm:w-7"
-                onClick={() => updateCartItemQuantity(item.tempId, item.quantity + 1)}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
-
-            {/* Remove Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 sm:h-7 sm:w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => removeFromCart(item.tempId)}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-
-            {/* Item Total */}
-            <p className="w-16 text-right font-semibold text-sm text-primary">
-              S/ {calculateItemTotal(item.price, item.quantity)}
-            </p>
+            {editingNotesFor === item.tempId && (
+              <Input
+                autoFocus
+                placeholder="Ej: sin salsa, alergia al maní..."
+                value={item.notes || ""}
+                maxLength={200}
+                onChange={(e) => updateCartItemNotes(item.tempId, e.target.value)}
+                onBlur={() => setEditingNotesFor(null)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") setEditingNotesFor(null)
+                }}
+                className="h-8 text-sm"
+              />
+            )}
           </div>
         ))}
       </div>

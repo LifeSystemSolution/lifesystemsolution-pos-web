@@ -66,6 +66,7 @@ interface POSContextType {
   addToCart: (product: Product, quantity?: number, notes?: string, variant?: ProductVariant, pizzaOptions?: { massType: PizzaMassType; flavor?: string; price: number }) => void
   removeFromCart: (tempId: string) => void
   updateCartItemQuantity: (tempId: string, quantity: number) => void
+  updateCartItemNotes: (tempId: string, notes: string) => void
   clearCart: () => void
   getCartTotal: () => number
   
@@ -351,6 +352,12 @@ export function POSProvider({ children }: { children: ReactNode }) {
       prev.map((item) => (item.tempId === tempId ? { ...item, quantity } : item))
     )
   }, [removeFromCart])
+
+  const updateCartItemNotes = useCallback((tempId: string, notes: string) => {
+    setCart((prev) =>
+      prev.map((item) => (item.tempId === tempId ? { ...item, notes: notes || undefined } : item))
+    )
+  }, [])
 
   const clearCart = useCallback(() => {
     setCart([])
@@ -656,6 +663,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     addToCart,
     removeFromCart,
     updateCartItemQuantity,
+    updateCartItemNotes,
     clearCart,
     getCartTotal,
     selectTable,
@@ -683,6 +691,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     addToCart,
     removeFromCart,
     updateCartItemQuantity,
+    updateCartItemNotes,
     clearCart,
     getCartTotal,
     selectTable,
