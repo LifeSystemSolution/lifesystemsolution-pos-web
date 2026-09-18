@@ -2181,7 +2181,7 @@ export function getUnsentItems(order: Order): OrderItem[] {
 }
 export async function processPaymentTransaction(
   orderId: string,
-  tableId: string,
+  tableId: string | null, // null for takeout orders — no table to free up
   payments: Payment[],
   orderTotal: number,
   cashRegisterId: string,
@@ -2189,7 +2189,7 @@ export async function processPaymentTransaction(
 ): Promise<void> {
   return runTransaction(db, async (transaction) => {
     // PHASE 1: GET ALL DATA (reads must come first)
-    
+
     // 1. Get and validate order
     const orderRef = doc(db, collections.orders, orderId)
     const orderDoc = await transaction.get(orderRef)
@@ -2201,9 +2201,9 @@ export async function processPaymentTransaction(
     const orderData = orderDoc.data() as Order
     const actualStoreId = storeId || orderData.storeId
 
-    // 2. Get table
-    const tableRef = doc(db, collections.tables, tableId)
-    const tableDoc = await transaction.get(tableRef)
+    // 2. Get table (skip entirely for takeout orders, which have no table)
+    const tableRef = tableId ? doc(db, collections.tables, tableId) : null
+    const tableDoc = tableRef ? await transaction.get(tableRef) : null
 
     // 3. Get operational balance if cash payment (inventory already deducted at order creation)
     const cashPaymentAmount = payments
@@ -2250,12 +2250,14 @@ export async function processPaymentTransaction(
       updatedAt: serverTimestamp(),
     })
 
-    // 8. Update table to available
-    transaction.update(tableRef, {
-      status: "available",
-      currentOrderId: null,
-      updatedAt: serverTimestamp(),
-    })
+    // 8. Update table to available (skip for takeout orders — no table)
+    if (tableRef) {
+      transaction.update(tableRef, {
+        status: "available",
+        currentOrderId: null,
+        updatedAt: serverTimestamp(),
+      })
+    }
 
     // 9. Update operational balance if cash payment (for cash register tracking)
     if (cashPaymentAmount > 0 && actualStoreId && opBalanceRef && opBalanceSnap) {

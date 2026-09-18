@@ -482,14 +482,15 @@ export function POSProvider({ children }: { children: ReactNode }) {
         throw new Error("Pedido no encontrado")
       }
 
-      if (!order.tableId) {
+      if (order.orderType !== "takeout" && !order.tableId) {
         throw new Error("El pedido no tiene mesa asociada")
       }
 
       // Use transaction to process payment (links to cash register session)
+      // Takeout orders have no table to free up — pass null.
       const orderItems = await processPaymentTransaction(
         orderId,
-        order.tableId,
+        order.tableId || null,
         payments,
         order.total,
         cashRegister.id,
