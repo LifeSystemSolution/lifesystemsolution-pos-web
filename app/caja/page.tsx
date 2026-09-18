@@ -1272,7 +1272,7 @@ export default function CajaPage() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground text-center">
-                = Monto inicial (S/ {cashRegister?.initialAmount.toFixed(2)}) + Ventas efectivo (S/ {salesBreakdown.cashSales.toFixed(2)})
+                = Monto inicial (S/ {cashRegister?.initialAmount.toFixed(2)}) + Ventas efectivo (S/ {salesBreakdown.cashSales.toFixed(2)}) − Gastos (S/ {dailyExpenses.toFixed(2)})
               </p>
             </div>
 
