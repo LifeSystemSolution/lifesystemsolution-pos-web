@@ -17,6 +17,13 @@ cada una); queda registrado acá el alcance implementado y lo que falta pulir.
 - Todas las pantallas que mostraban `Mesa {tableNumber}` (`/caja`, `/cocina`,
   `/historial-ventas`, `daily-sales.tsx`, `closure-sales-modal.tsx`, recibo impreso)
   ahora muestran "Para Llevar" cuando `order.orderType === "takeout"`.
+- **Bug encontrado y corregido durante la prueba end-to-end**: `processPayment`
+  tenía un guard `if (!order.tableId) throw "El pedido no tiene mesa asociada"` que
+  bloqueaba el pago de CUALQUIER pedido takeout (probado: producto → cocina →
+  intento de pago → error). `processPaymentTransaction` también leía/actualizaba la
+  mesa de forma incondicional. Se corrigió haciendo `tableId` opcional (`null` para
+  takeout) en ambos — verificado que el pago de un pedido para llevar ahora completa
+  correctamente de punta a punta (creación → cocina → cobro → aparece en historial).
 - **Pendiente de pulir**: el filtro de búsqueda por mesa en `/historial-ventas` no
   matchea "para llevar" como texto (busca solo por número) — cosmético, no bloquea
   nada.

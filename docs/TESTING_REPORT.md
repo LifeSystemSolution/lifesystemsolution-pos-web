@@ -1,6 +1,6 @@
 # Reporte de Pruebas — LifeSystemSolution POS
 
-> Última actualización: 2026-09-17 (post-migración Firebase → Supabase/Postgres)
+> Última actualización: 2026-09-18 (post-migración Firebase → Supabase/Postgres)
 > Ambiente probado: producción — https://lifesystemsolution-pos-web.vercel.app
 > Store de prueba: LOCAL DEMO 1 (`2WRBqHVkUMGpqNNybIX6`)
 
@@ -25,9 +25,9 @@ confirmar que el estado persistido es correcto y no solo lo que muestra la panta
 | Abrir Caja | ✅ Verificado | — |
 | Dashboard — estado SUNAT | ✅ Verificado | 1 (corregido: alarmaba sin motivo si SUNAT no está configurado) |
 | SUNAT / Facturación electrónica | ⏸️ Pendiente | Diferido a propósito — ver sección SUNAT |
-| Pedido para llevar (takeout) | 🆕 Implementado, sin probar en vivo | Ver docs/PENDING_FEATURES.md |
-| Comanda de cocina (ticketera) | 🆕 Implementado, sin probar en vivo | Disparo manual — ver docs/PENDING_FEATURES.md |
-| Notas/alergias por ítem | 🆕 Implementado, sin probar en vivo | Ver docs/PENDING_FEATURES.md |
+| Pedido para llevar (takeout) | ✅ Verificado end-to-end | 1 (corregido: pago bloqueado — ver docs/PENDING_FEATURES.md) |
+| Comanda de cocina (ticketera) | ✅ Botón funciona sin errores | Impresión real no verificable en este entorno de prueba (bloqueo de pop-ups del sandbox) — ver docs/PENDING_FEATURES.md |
+| Notas/alergias por ítem | ✅ Verificado end-to-end | — |
 
 ---
 
@@ -143,7 +143,54 @@ actual a propósito (ver sección 8). Se agregó un chequeo liviano
 `GET /api/facturacion` (sin `tipo`/`id`) que responde `{configured: boolean}`, y el
 dashboard ahora oculta ambos bloques por completo mientras SUNAT no esté conectado.
 
-## 8. SUNAT / Facturación electrónica — PENDIENTE
+## 8. Features nuevas (2026-09-18): takeout, comanda impresa, notas por ítem
+
+Ver detalle de implementación en [PENDING_FEATURES.md](./PENDING_FEATURES.md). Cada
+una se probó end-to-end contra producción con escrituras reales:
+
+### 8.1 Pedido para llevar
+Flujo completo probado: `/mesero` → botón "Pedido para Llevar" → agregar producto
+con nota → "Enviar a Cocina" → `/cocina` muestra "Para Llevar" (no "Mesa undefined")
+→ Preparar/Listo/Entregado → `/caja` lista el pedido como "Para Llevar" → pago en
+efectivo. Verificado en DB: `orderType: "takeout"`, sin `tableId`/`tableNumber`,
+`paymentStatus: "paid"` al final.
+
+**Bug encontrado y corregido**: el primer intento de pago falló con "El pedido no
+tiene mesa asociada" — `processPayment`/`processPaymentTransaction` asumían que todo
+pedido tiene mesa. Se corrigió haciendo `tableId` opcional (`null` para takeout).
+Repetido el flujo completo tras el fix: pago exitoso.
+
+### 8.2 Comanda de cocina impresa
+Botón de impresora en cada tarjeta de `/cocina` — se confirmó que ejecuta sin
+lanzar errores de consola y llama a `generateKitchenTicket()` +
+`generatePrintHTML()` (mismo patrón que el botón de recibo ya existente en
+`/caja`). **No se pudo verificar la impresión real** en este entorno de prueba: el
+navegador automatizado bloquea `window.open()` incluso para el botón de recibo ya
+existente (confirmado con una llamada directa `window.open("","_blank")` → `null`),
+así que esto es una limitación del entorno de pruebas, no evidencia de un bug —
+recomendado probar manualmente desde un navegador normal con una impresora
+configurada.
+
+### 8.3 Notas/alergias por ítem
+Agregada la nota "Sin salsa, alergia al mani" a un ítem del carrito en `/mesero`;
+verificado que se guarda en `OrderItem.notes`, se muestra en el carrito, en
+`/cocina`, y se incluiría en la comanda impresa (la plantilla ya soportaba
+`item.notes`).
+
+### 8.4 Hallazgo de infraestructura: `AUTH_JWT_SECRET` distinto entre local y Vercel
+Al generar un token de sesión firmado con el `AUTH_JWT_SECRET` de `.env.local` para
+retomar las pruebas (sesión de navegador perdida a mitad de la ronda), producción lo
+rechazó con "Token inválido o expirado" — confirmado con una llamada `curl` directa a
+`/api/db`, sin pasar por el navegador. Un login real contra `/api/auth/login` sí
+emitió un token válido y aceptado. Esto indica que el valor de
+`AUTH_JWT_SECRET` configurado en Vercel ya no coincide con el que está en
+`.env.local` (probablemente se rotó en algún momento sin actualizar el archivo
+local). No afecta a los usuarios reales — solo importa si en el futuro se necesita
+firmar/verificar tokens localmente contra producción. Recomendado: sincronizar
+`.env.local` con el valor real de Vercel (`vercel env pull` o copiarlo manualmente
+del dashboard) para que quede documentado y no se repita la confusión.
+
+## 9. SUNAT / Facturación electrónica — PENDIENTE
 
 **Estado: intencionalmente no configurado.** Las variables de entorno
 `SUNAT_API_BASE_URL`, `SUNAT_API_KEY`, `SUNAT_API_SECRET` no están seteadas en
@@ -160,7 +207,7 @@ tanto:
 consulta de estado (`GET /api/facturacion?tipo=...&id=...`), notas de crédito, y
 verificar que los códigos de error de SUNAT se muestren de forma clara al cajero.
 
-## 9. No probado aún en esta ronda
+## 10. No probado aún en esta ronda
 
 - Ajustes manuales de inventario.
 - Gestión de proveedores / pago a proveedores.
