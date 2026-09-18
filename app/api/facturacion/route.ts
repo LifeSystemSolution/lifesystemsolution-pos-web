@@ -196,14 +196,24 @@ export async function POST(req: NextRequest) {
 
 // Permite consultar el estado de un comprobante ya emitido: /api/facturacion?tipo=FACTURA&id=123
 export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const tipo = searchParams.get("tipo") as TipoComprobante | null
+  const id = searchParams.get("id")
+
+  // Chequeo liviano de configuración (sin tipo/id) — lo usa el dashboard para
+  // saber si SUNAT está conectado antes de mostrar alertas de "comprobantes
+  // sin emitir". Sin esto, con las credenciales sin configurar (a propósito,
+  // mientras no se activa SUNAT) el dashboard alarmaba con "N ventas sin
+  // comprobante" por algo que ni está prendido todavía.
+  if (!tipo && !id) {
+    return NextResponse.json({ ok: true, configured: !!(BASE_URL && API_KEY && API_SECRET) })
+  }
+
   try {
     if (!BASE_URL || !API_KEY || !API_SECRET) {
       return NextResponse.json({ ok: false, mensaje: "Faltan credenciales en el servidor" }, { status: 500 })
     }
 
-    const { searchParams } = new URL(req.url)
-    const tipo = searchParams.get("tipo") as TipoComprobante | null
-    const id = searchParams.get("id")
     const endpoint = tipo ? ENDPOINT_POR_TIPO[tipo] : undefined
 
     if (!endpoint || !id) {

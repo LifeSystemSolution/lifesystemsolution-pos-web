@@ -61,10 +61,24 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [viewMode, setViewMode] = useState<"reports" | "stores">("reports")
+  // null = todavía no se sabe (no mostrar nada hasta confirmar, para no
+  // alarmar con un banner que después va a desaparecer solo)
+  const [sunatConfigured, setSunatConfigured] = useState<boolean | null>(null)
 
   // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  // ¿Está conectado SUNAT? Sin esto, con las credenciales sin configurar (a
+  // propósito, mientras no se activa) el dashboard mostraba "N ventas sin
+  // comprobante" como si fuera un error — es simplemente una función que
+  // todavía no está prendida.
+  useEffect(() => {
+    fetch("/api/facturacion")
+      .then((res) => res.json())
+      .then((json) => setSunatConfigured(!!json.configured))
+      .catch(() => setSunatConfigured(false))
   }, [])
 
   // Load stores for super admin
@@ -441,40 +455,48 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Estado ante SUNAT (solo Boleta + Factura) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-3">
-          <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-            <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Aceptados</p>
-              <p className="font-semibold text-sm">{estadoSunat.aceptado}</p>
+        {/* Estado ante SUNAT (solo Boleta + Factura) — oculto por completo
+            mientras SUNAT no esté conectado: no tiene sentido mostrar
+            "0 aceptados / 0 rechazados" de una integración que ni está
+            prendida todavía. */}
+        {sunatConfigured && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-3">
+            <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+              <CheckCircle2 className="h-4 w-4 text-green-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Aceptados</p>
+                <p className="font-semibold text-sm">{estadoSunat.aceptado}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Pendientes</p>
+                <p className="font-semibold text-sm">{estadoSunat.pendiente}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+              <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Rechazados</p>
+                <p className="font-semibold text-sm">{estadoSunat.rechazado}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-muted/30 border border-border">
+              <Receipt className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Anulados</p>
+                <p className="font-semibold text-sm">{estadoSunat.anulado}</p>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-            <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Pendientes</p>
-              <p className="font-semibold text-sm">{estadoSunat.pendiente}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-destructive/10 border border-destructive/20">
-            <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Rechazados</p>
-              <p className="font-semibold text-sm">{estadoSunat.rechazado}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 p-2 sm:p-3 rounded-lg bg-muted/30 border border-border">
-            <Receipt className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">Anulados</p>
-              <p className="font-semibold text-sm">{estadoSunat.anulado}</p>
-            </div>
-          </div>
-        </div>
+        )}
 
-        {/* Alerta: ventas cobradas sin comprobante emitido en la API */}
-        {ventasSinComprobante.length > 0 && (
+        {/* Alerta: ventas cobradas sin comprobante emitido en la API — solo
+            tiene sentido como alerta si SUNAT SÍ está conectado (ahí sí
+            sería un fallo real). Sin conectar, es el comportamiento
+            esperado, no un error que mostrarle al cajero. */}
+        {sunatConfigured && ventasSinComprobante.length > 0 && (
           <div className="flex items-center justify-between gap-3 mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
