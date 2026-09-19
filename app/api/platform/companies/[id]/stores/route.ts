@@ -1,59 +1,31 @@
 /**
  * app/api/platform/companies/[id]/stores/route.ts
  * ---------------------------------------------------------------------------
- * Agrega una tienda nueva a una empresa YA existente. Crear tiendas es
- * exclusivo del dueño de la plataforma (ver app/api/db/route.ts, que
- * rechaza addDoc de "stores" para cualquiera que no sea isPlatformOwner) —
- * esta ruta es el único camino real para hacerlo.
+ * Agrega un LOCAL a una empresa ya existente — siempre junto con SU cuenta
+ * de acceso (la que usarán los empleados del local: entran con ella y luego
+ * con su PIN). Crear tiendas es exclusivo del dueño de la plataforma
+ * (lib/local/db-access-policy.ts lo hace cumplir también en /api/db).
+ * Editar/desactivar/eliminar: stores/[storeId]/route.ts.
  * ---------------------------------------------------------------------------
  */
 import { NextRequest, NextResponse } from "next/server"
 import { withPlatformOwnerScope } from "@/lib/local/pg-client"
-import { getPlatformOwnerSession } from "@/lib/local/platform-auth"
-import { seedNewStore } from "@/lib/local/platform-store-seed"
+import { runOwnerRoute, HttpError } from "@/lib/local/platform-auth"
+import { createStoreWithAccount } from "@/lib/local/platform-helpers"
 
 export const runtime = "nodejs"
 
-function genSuffix() {
-  return Math.random().toString(36).slice(2, 8)
-}
-
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!getPlatformOwnerSession(req)) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 })
-  }
-  const { id: companyId } = await params
+  return runOwnerRoute(req, "stores POST", async () => {
+    const { id: companyId } = await params
+    const { name, code, accountEmail, accountPassword } = await req.json()
 
-  try {
-    const body = await req.json()
-    const { name, code } = body
-    if (!name?.trim() || !code?.trim()) {
-      return NextResponse.json({ error: "name y code son requeridos" }, { status: 400 })
-    }
-
-    const storeId = `store_${genSuffix()}`
-
-    await withPlatformOwnerScope(async (client) => {
-      await client.query(
-        `INSERT INTO documents (collection, id, company_id, data)
-         VALUES ('stores', $1, $2, $3::jsonb)`,
-        [
-          storeId,
-          companyId,
-          JSON.stringify({
-            name: name.trim(),
-            code: code.trim().toUpperCase(),
-            active: true,
-            createdAt: new Date().toISOString(),
-          }),
-        ]
-      )
-      await seedNewStore(client, companyId, storeId)
+    const created = await withPlatformOwnerScope(async (client) => {
+      const { rows } = await client.query(`SELECT 1 FROM companies WHERE id = $1`, [companyId])
+      if (rows.length === 0) throw new HttpError(404, "Empresa no encontrada")
+      return createStoreWithAccount(client, { companyId, name, code, accountEmail, accountPassword })
     })
 
-    return NextResponse.json({ storeId })
-  } catch (err: any) {
-    console.error("[api/platform/companies/[id]/stores POST] Error:", err)
-    return NextResponse.json({ error: err?.message || "Error del servidor" }, { status: 500 })
-  }
+    return NextResponse.json(created)
+  })
 }

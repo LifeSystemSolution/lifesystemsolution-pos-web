@@ -68,27 +68,74 @@ export function getPool(): Pool {
  * que RLS está para cubrir, no para reemplazar el filtrado a mano en el resto
  * de las queries).
  */
+export type CompanyScope = {
+  companyId: string
+  /** null = cuenta de EMPRESA (ve todos los locales); con valor = cuenta de LOCAL (solo ese local). */
+  storeId: string | null
+  isPlatformOwner: boolean
+}
+
+export type CompanyScopeOutcome<T> =
+  | { status: "no_company" }
+  | { status: "disabled"; reason: "account" | "company" }
+  | { status: "ok"; scope: CompanyScope; result: T }
+
+/**
+ * Además de la empresa, resuelve en la MISMA consulta (cero viajes extra) el
+ * local al que está atada la cuenta (company_members.store_id) y si la
+ * cuenta o la empresa fueron desactivadas — así desactivar corta el acceso
+ * en el siguiente request aunque el JWT (7 días) siga vigente. Las cuentas
+ * dueñas de la plataforma ignoran el flag `active` de su propia cuenta (no
+ * pueden dejarse afuera a sí mismas).
+ */
 export async function withCompanyScope<T>(
   accountId: string,
-  fn: (client: import("pg").PoolClient, companyId: string) => Promise<T>
-): Promise<{ companyId: null } | { companyId: string; result: T }> {
+  fn: (client: import("pg").PoolClient, scope: CompanyScope) => Promise<T>
+): Promise<CompanyScopeOutcome<T>> {
   const pool = getPool()
   const client = await pool.connect()
   try {
     await client.query("BEGIN")
-    const { rows } = await client.query<{ company_id: string }>(
-      `SELECT company_id, set_config('app.company_id', company_id, true)
-       FROM company_members WHERE auth_account_id = $1`,
+    const { rows } = await client.query<{
+      company_id: string
+      store_id: string | null
+      account_active: boolean
+      is_platform_owner: boolean
+      company_active: boolean
+    }>(
+      `SELECT cm.company_id,
+              cm.store_id,
+              a.active AS account_active,
+              a.is_platform_owner,
+              c.active AS company_active,
+              set_config('app.company_id', cm.company_id, true)
+       FROM company_members cm
+       JOIN auth_accounts a ON a.id = cm.auth_account_id
+       JOIN companies c ON c.id = cm.company_id
+       WHERE cm.auth_account_id = $1`,
       [accountId]
     )
-    const companyId = rows[0]?.company_id
-    if (!companyId) {
+    const row = rows[0]
+    if (!row) {
       await client.query("ROLLBACK")
-      return { companyId: null }
+      return { status: "no_company" }
     }
-    const result = await fn(client, companyId)
+    if (!row.account_active && !row.is_platform_owner) {
+      await client.query("ROLLBACK")
+      return { status: "disabled", reason: "account" }
+    }
+    if (!row.company_active) {
+      await client.query("ROLLBACK")
+      return { status: "disabled", reason: "company" }
+    }
+    const scope: CompanyScope = {
+      companyId: row.company_id,
+      storeId: row.store_id,
+      isPlatformOwner: row.is_platform_owner,
+    }
+    const result = await fn(client, scope)
     await client.query("COMMIT")
-    return { companyId, result }
+    return { status: "ok", scope, result }
   } catch (err) {
     await client.query("ROLLBACK")
     throw err

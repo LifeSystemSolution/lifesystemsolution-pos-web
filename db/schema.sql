@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS auth_accounts (
   -- de TODAS las empresas en /plataforma. Nunca se autoasigna desde la API,
   -- solo a mano en la base de datos. Ver política RLS más abajo.
   is_platform_owner   BOOLEAN NOT NULL DEFAULT false,
+  -- Desactivar corta el acceso de inmediato (se chequea en cada request).
+  active              BOOLEAN NOT NULL DEFAULT true,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -60,11 +62,16 @@ CREATE TABLE IF NOT EXISTS companies (
 CREATE TABLE IF NOT EXISTS company_members (
   auth_account_id  TEXT PRIMARY KEY REFERENCES auth_accounts(id),
   company_id       TEXT NOT NULL REFERENCES companies(id),
+  -- NULL = cuenta de EMPRESA (Super Admin, ve todos los locales).
+  -- Con valor = cuenta de LOCAL: solo ve datos de esa tienda (lo hace
+  -- cumplir app/api/db/route.ts). Sin FK: las tiendas viven en `documents`.
+  store_id         TEXT,
   email            TEXT,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS company_members_company_idx ON company_members (company_id);
+CREATE INDEX IF NOT EXISTS company_members_company_store_idx ON company_members (company_id, store_id);
 
 CREATE TABLE IF NOT EXISTS documents (
   collection  TEXT NOT NULL,

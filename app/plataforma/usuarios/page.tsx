@@ -1,24 +1,28 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { platformFetch } from "@/lib/local/platform-client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
-import { Users2 } from "lucide-react"
+import { ShieldCheck } from "lucide-react"
 
-interface UserRow {
+interface AccountRow {
   id: string
   email: string
   isPlatformOwner: boolean
+  active: boolean
   createdAt: string
   companyId: string | null
   companyName: string | null
+  storeId: string | null
+  storeName: string | null
 }
 
 export default function PlataformaUsuariosPage() {
-  const [users, setUsers] = useState<UserRow[]>([])
+  const [accounts, setAccounts] = useState<AccountRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,9 +30,9 @@ export default function PlataformaUsuariosPage() {
     ;(async () => {
       try {
         const res = await platformFetch("/api/platform/users")
-        setUsers(res.users || [])
+        setAccounts(res.users || [])
       } catch (err: any) {
-        setError(err.message || "Error cargando usuarios")
+        setError(err.message || "Error cargando cuentas")
       } finally {
         setIsLoading(false)
       }
@@ -42,7 +46,6 @@ export default function PlataformaUsuariosPage() {
       </div>
     )
   }
-
   if (error) {
     return <p className="text-destructive text-sm">{error}</p>
   }
@@ -52,8 +55,8 @@ export default function PlataformaUsuariosPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Users2 className="h-5 w-5" />
-            Cuentas de login (todas las empresas)
+            <ShieldCheck className="h-5 w-5" />
+            Cuentas de acceso (todas las empresas)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -62,30 +65,46 @@ export default function PlataformaUsuariosPage() {
               <TableRow>
                 <TableHead>Correo</TableHead>
                 <TableHead>Empresa</TableHead>
-                <TableHead>Rol de plataforma</TableHead>
+                <TableHead>Nivel</TableHead>
+                <TableHead>Estado</TableHead>
                 <TableHead>Creada</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell className="font-medium">{u.email}</TableCell>
-                  <TableCell>{u.companyName || <span className="text-muted-foreground">Sin empresa</span>}</TableCell>
+              {accounts.map((a) => (
+                <TableRow key={a.id} className={a.active ? "" : "opacity-60"}>
+                  <TableCell className="font-medium">{a.email}</TableCell>
                   <TableCell>
-                    {u.isPlatformOwner ? (
+                    {a.companyId ? (
+                      <Link href={`/plataforma/empresas/${a.companyId}`} className="hover:underline">
+                        {a.companyName}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">Sin empresa</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {a.isPlatformOwner ? (
                       <Badge>Dueño de plataforma</Badge>
+                    ) : a.storeId ? (
+                      <Badge variant="outline">Local: {a.storeName}</Badge>
+                    ) : a.companyId ? (
+                      <Badge variant="secondary">Empresa · Super Admin</Badge>
                     ) : (
                       <span className="text-muted-foreground text-sm">—</span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <Badge variant={a.active ? "default" : "destructive"}>{a.active ? "Activa" : "Desactivada"}</Badge>
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {new Date(u.createdAt).toLocaleDateString("es-PE")}
+                    {new Date(a.createdAt).toLocaleDateString("es-PE")}
                   </TableCell>
                 </TableRow>
               ))}
-              {users.length === 0 && (
+              {accounts.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     Sin cuentas registradas
                   </TableCell>
                 </TableRow>
@@ -96,10 +115,9 @@ export default function PlataformaUsuariosPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Esta lista muestra solo cuentas de login (correo/contraseña, una por empresa
-        o tienda administradora). Los usuarios operativos con PIN (mesero, cajero,
-        cocina) se administran dentro de cada empresa, en su propio /admin — no
-        aparecen acá para no cruzar datos entre negocios.
+        Vista global de solo lectura. Para crear, desactivar, cambiar contraseñas o eliminar cuentas, entra a la
+        empresa correspondiente. Los usuarios operativos con PIN (mesero, cajero, cocina) se ven y administran también
+        dentro de cada empresa.
       </p>
     </div>
   )

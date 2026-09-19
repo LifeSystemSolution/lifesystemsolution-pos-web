@@ -271,7 +271,62 @@ LifeSystemSolution, no dueño de plataforma):
   `"La tienda indicada no pertenece a esta empresa"` en vez de crear el
   usuario con una referencia rota.
 
-## 13. No probado aún en esta ronda
+## 13. Cuentas por local, control total y aislamiento entre locales (2026-09-19)
+
+Modelo nuevo: cuenta de EMPRESA (Super Admin) + una cuenta por LOCAL que usan
+todos sus empleados (luego cada uno pone su PIN). Ver
+[PLATFORM_OWNER.md](./PLATFORM_OWNER.md) sección 1.
+
+**Batería automatizada de 69 pruebas, todas OK** (empresa desechable creada y
+borrada por la API; se comparó el estado de LifeSystemSolution y MultiPizza
+antes/después: **idéntico**, no se tocó nada real):
+- *Alta*: empresa con Super Admin + local + cuentas; correo duplicado → 409 y
+  la transacción no deja una empresa a medias; segundo local; PIN autogenerado;
+  PIN repetido en el mismo local → 409, en otro local → permitido.
+- *Aislamiento de lectura* (cuenta de local): ve 1 tienda, solo los usuarios de
+  su local (ni super_admin ni PIN de otros), solo sus 10 mesas y su inventario;
+  `getDoc` de otro local → no existe. Cuenta de empresa: ve todo lo suyo.
+- *Escrituras*: editar/crear en otro local → 403; crear usuario por `addDoc`,
+  `setDoc` con ID propio y `batch` → 403 (**hueco encontrado y cerrado en esta
+  ronda**: antes solo `addDoc` estaba bloqueado); crear/borrar tienda → 403;
+  ascender a `super_admin`/`admin_global` → 403 (también para el Super Admin);
+  un `batch` con una operación ajena no aplica NINGUNA (ni las propias).
+  Editar un usuario de su propio local y crear pedidos en su local siguen
+  funcionando.
+- *Activar/desactivar*: cuenta desactivada → el token viejo falla YA
+  (`account_disabled`) y no puede volver a loguearse; reactivada, vuelve.
+  Local desactivado → su cuenta queda inactiva y sus empleados no entran;
+  empresa desactivada → `company_disabled` para todos.
+- *Contraseñas/PIN*: cambio de contraseña (la vieja deja de servir), contraseña
+  corta → 400, regenerar/editar PIN, PIN inválido → 400, mover usuario de local,
+  convertir en `admin_global` con locales asignados, local inexistente → 400.
+  La cuenta del dueño de la plataforma no se puede tocar (→ 403).
+- *Eliminar*: local y empresa exigen el nombre exacto (400 si no); la cascada no
+  deja documentos, cuentas ni asignaciones (`assignedStores`) huérfanas.
+- *Empresa demo migrada*: `acc_local1` solo ve LOCAL DEMO 1 (tienda, usuarios,
+  pedidos); `acc_admin` sigue viendo los 3.
+
+**Prueba de interfaz** (navegador, contra el servidor local): el diálogo de
+crear empresa (dos secciones) y su pantalla de resultado con las dos cuentas y
+los PIN; detalle de la empresa (cuentas con nivel, locales con su cuenta,
+usuarios con PIN oculto); agregar local (con su cuenta) y usuario (PIN
+autogenerado); borrar local — el botón queda bloqueado hasta escribir el nombre
+exacto y la cascada se confirmó en la base; pantalla de empleado de una cuenta
+de local: sin pestaña "Super Admin" y con el local fijo/bloqueado; al
+desactivar la cuenta con la sesión abierta, el navegador cerró la sesión solo
+en segundos y el login mostró "Tu cuenta fue desactivada…".
+
+**Pendiente / a tener en cuenta**
+- MultiPizza (empresa real) fue creada con el flujo anterior: 2 locales y **una
+  sola cuenta de empresa**. Sigue funcionando igual, pero para cumplir el
+  modelo nuevo hay que crearle la cuenta de cada local desde
+  `/plataforma/empresas/[id]` ("Agregar cuenta" → nivel Local).
+- `app/api/facturacion` y `app/api/consultas/documento` no exigen sesión
+  (pendiente cerrar antes de activar SUNAT).
+- El resto de la UI de `/admin`/POS no se re-probó de punta a punta con una
+  cuenta de local real (sí a nivel API y pantalla de PIN).
+
+## 14. No probado aún en esta ronda
 
 - Ajustes manuales de inventario.
 - Gestión de proveedores / pago a proveedores.
@@ -279,6 +334,3 @@ LifeSystemSolution, no dueño de plataforma):
 - Distribución de efectivo al cierre (caja fuerte / caja principal) — se vio el modal
   "Confirmar Distribución" de pasada pero no se completó un test dedicado.
 - Reportes / `/dashboard` en profundidad más allá del bloque SUNAT.
-- Botón "Guardar cambios" de plan/estado en `/plataforma/empresas/[id]` (usa el
-  mismo endpoint PATCH ya verificado para SUNAT, pero no se probó ese caso puntual).
-- Quitar una cuenta de acceso (`DELETE .../members`) — implementado, no probado en vivo.

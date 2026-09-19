@@ -12,13 +12,28 @@
  *
  *   1. Cada request lleva el token de sesión propio (Authorization: Bearer,
  *      emitido por app/api/auth/login — ver lib/local/session.ts), porque
- *      el servidor necesita saber de qué EMPRESA son los datos que está
- *      pidiendo — ver resolveCompanyId en app/api/db/route.ts.
+ *      el servidor necesita saber de qué EMPRESA (y, si es cuenta de local,
+ *      de qué LOCAL) son los datos que está pidiendo — ver
+ *      app/api/db/route.ts y lib/local/db-access-policy.ts.
  *   2. onSnapshot hace polling cada 3s (ver la nota en esa función más abajo
  *      sobre por qué no es SSE/Realtime, a pesar de que se intentó).
  * ---------------------------------------------------------------------------
  */
-import { getStoredSession } from "@/lib/local/session"
+import { getStoredSession, clearStoredSession } from "@/lib/local/session"
+
+// Si el dueño de la plataforma desactiva una cuenta/empresa mientras hay
+// una sesión abierta, el servidor responde 403 con este código en cada
+// request: se cierra la sesión una sola vez y se vuelve al login.
+let disabledRedirectStarted = false
+function handleDisabledSession() {
+  if (disabledRedirectStarted || typeof window === "undefined") return
+  disabledRedirectStarted = true
+  clearStoredSession()
+  try {
+    localStorage.removeItem("pos_operative_unlock")
+  } catch {}
+  window.location.href = "/?disabled=1"
+}
 
 class ConflictError extends Error {
   constructor(message: string) {
@@ -43,6 +58,9 @@ async function callApi(body: Record<string, any>) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     if (res.status === 409) throw new ConflictError(err.mensaje || "Conflicto de concurrencia")
+    if (res.status === 403 && (err.code === "account_disabled" || err.code === "company_disabled")) {
+      handleDisabledSession()
+    }
     throw new Error(err.error || err.mensaje || `Error de base de datos (${res.status})`)
   }
   return res.json()
@@ -275,8 +293,11 @@ export async function addDoc(ref: CollectionRef, data: Record<string, any>) {
 // de verdad haría falta Edge Runtime o un servicio de relay aparte, no
 // serverless. Mientras tanto, polling: menos instantáneo, pero es un
 // fetch corto y normal, funciona igual en local, Vercel, o cualquier otro
-// hosting serverless. app/api/realtime/route.ts queda en el repo por si se
-// retoma el relay más adelante, pero el shim ya no lo usa.
+// hosting serverless. El relay (app/api/realtime/route.ts) se eliminó el
+// 2026-09-19: era código muerto y, con cuentas atadas a un local, habría
+// filtrado eventos de todos los locales de la empresa (ver
+// docs/PLATFORM_OWNER.md). Si se retoma el relay, tiene que aplicar
+// lib/local/db-access-policy.ts igual que /api/db.
 // ---------------------------------------------------------------------------
 const POLL_INTERVAL_MS = 3000 // WAN, no LAN — más espaciado que los 2s del desktop
 

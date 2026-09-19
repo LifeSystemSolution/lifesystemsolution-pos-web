@@ -149,8 +149,9 @@ Navegador                Next.js API (server)              Supabase
    `app/dev-test/page.tsx` (write + read reales contra Supabase, con RLS).
    `onSnapshot` todavía hace polling (3s) — el relay de Realtime es el
    siguiente paso, no cambia esta firma cuando se reemplace.
-5. ✅ **Relay de Realtime** — [app/api/realtime/route.ts](../app/api/realtime/route.ts)
-   (SSE alimentado por Supabase Realtime, filtrado por `company_id`) +
+5. ⛔ **Relay de Realtime** (histórico — **eliminado 2026-09-19**: no funciona en
+   Vercel serverless y no respetaba el alcance por local; el shim usa polling) —
+   `app/api/realtime/route.ts` (SSE alimentado por Supabase Realtime, filtrado por `company_id`) +
    `onSnapshot` del shim adaptado para usarlo. **Verificado en vivo**: un
    `UPDATE` hecho desde el SQL Editor de Supabase apareció en el navegador
    sin refrescar ni hacer polling.

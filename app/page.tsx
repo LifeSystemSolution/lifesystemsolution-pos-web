@@ -18,6 +18,7 @@ export default function LoginPage() {
   const {
     isFirebaseAuthenticated,
     isPlatformOwner,
+    accountStoreId,
     firebaseLogin,
     firebaseAccessibleStores,
     login,
@@ -38,6 +39,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [loadingStores, setLoadingStores] = useState(true)
   const [loginMode, setLoginMode] = useState<"normal" | "super_admin">("normal")
+  const [disabledNotice, setDisabledNotice] = useState(false)
+
+  // Si el dueño de la plataforma desactivó la cuenta con la sesión abierta, el
+  // cliente vuelve acá con ?disabled=1 (ver handleDisabledSession en el shim).
+  useEffect(() => {
+    setDisabledNotice(new URLSearchParams(window.location.search).get("disabled") === "1")
+  }, [])
 
   // Load stores - initially empty, will be populated after PIN login
   useEffect(() => {
@@ -221,6 +229,14 @@ export default function LoginPage() {
                 />
               </div>
 
+              {disabledNotice && !error && (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                  <p className="text-sm text-destructive text-center">
+                    Tu cuenta fue desactivada. Contacta al administrador de la plataforma.
+                  </p>
+                </div>
+              )}
+
               {/* Error Message */}
               {error && (
                 <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
@@ -365,7 +381,8 @@ export default function LoginPage() {
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Login Mode Tabs */}
+            {/* Login Mode Tabs — las cuentas de LOCAL no tienen modo Super Admin */}
+            {!accountStoreId && (
             <Tabs value={loginMode} onValueChange={(v) => { setLoginMode(v as "normal" | "super_admin"); setPin("") }}>
               <TabsList className="grid w-full grid-cols-2 bg-muted/50">
                 <TabsTrigger value="normal" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
@@ -378,6 +395,7 @@ export default function LoginPage() {
                 </TabsTrigger>
               </TabsList>
             </Tabs>
+            )}
 
             {/* Store Selection - Only for normal users */}
             {loginMode === "normal" && (
@@ -385,7 +403,7 @@ export default function LoginPage() {
                 <label className="text-sm font-medium text-foreground">
                   Seleccionar Local
                 </label>
-                <Select value={selectedStoreCode} onValueChange={setSelectedStoreCode}>
+                <Select value={selectedStoreCode} onValueChange={setSelectedStoreCode} disabled={!!accountStoreId}>
                   <SelectTrigger className="w-full bg-input border-border">
                     <SelectValue placeholder="Selecciona tu local" />
                   </SelectTrigger>

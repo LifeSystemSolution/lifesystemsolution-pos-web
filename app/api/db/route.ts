@@ -8,14 +8,16 @@
  *
  *   1. Verifica el JWT de sesión propio del header Authorization (emitido
  *      por app/api/auth/login — sin Firebase).
- *   2. Resuelve a qué empresa pertenece esa cuenta (tabla company_members —
- *      la única consulta sin scope, por diseño: ver db/schema.sql).
- *   3. Corre la operación dentro de withCompanyScope(uid, ...), que resuelve
- *      la empresa Y deja `app.company_id` seteado para esa transacción en la
- *      MISMA consulta (para ahorrar un viaje de red) — la política RLS de
- *      `documents` hace el resto: aunque el filtrado de más arriba (acá o en
- *      lib/firebase/firestore.ts) se olvidara de una empresa, Postgres no
- *      devuelve ni acepta filas que no sean de esa empresa.
+ *   2. Resuelve a qué empresa pertenece esa cuenta, a qué LOCAL está atada
+ *      (si es cuenta de local) y si la cuenta/empresa siguen activas
+ *      (tablas company_members/auth_accounts/companies — la única consulta
+ *      sin scope, por diseño: ver db/schema.sql).
+ *   3. Corre la operación dentro de withCompanyScope(uid, ...), que deja
+ *      `app.company_id` seteado para esa transacción en la MISMA consulta —
+ *      la política RLS de `documents` aísla entre empresas.
+ *   4. Aplica lib/local/db-access-policy.ts: las cuentas de local solo ven y
+ *      escriben su propio local, y crear/borrar tiendas o usuarios es
+ *      exclusivo del dueño de la plataforma.
  *
  * El filtrado de where/orderBy/limit se sigue haciendo en JS sobre las filas
  * ya traídas (no se arma SQL dinámico con nombres de campo arbitrarios) —
@@ -26,6 +28,7 @@ import { NextRequest, NextResponse } from "next/server"
 import type { PoolClient } from "pg"
 import { withCompanyScope } from "@/lib/local/pg-client"
 import { verifySessionToken } from "@/lib/local/auth"
+import { checkWrites, rowVisible, type WriteOp } from "@/lib/local/db-access-policy"
 
 export const runtime = "nodejs"
 
@@ -78,11 +81,7 @@ function applyQuery(rows: { id: string; data: any }[], body: any) {
   return items
 }
 
-async function writeOne(
-  client: PoolClient,
-  companyId: string,
-  op: { type: "set" | "update" | "delete"; collection: string; id: string; data?: any; merge?: boolean }
-) {
+async function writeOne(client: PoolClient, companyId: string, op: WriteOp) {
   if (op.type === "delete") {
     await client.query(`DELETE FROM documents WHERE collection = $1 AND id = $2 AND company_id = $3`, [op.collection, op.id, companyId])
     return
@@ -116,6 +115,10 @@ async function writeOne(
   }
 }
 
+function forbidden(message: string) {
+  return NextResponse.json({ error: message }, { status: 403 })
+}
+
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization") || ""
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null
@@ -130,25 +133,10 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
 
-  // Crear tiendas o usuarios operativos nuevos es exclusivo del dueño de la
-  // plataforma (ver /plataforma y docs/PLATFORM_OWNER.md) — ni admin ni
-  // super_admin de una empresa pueden hacerlo, ni siquiera llamando este
-  // endpoint directo (el botón ya no existe en /admin, pero esto es lo que
-  // realmente lo impide). Editar/desactivar tiendas y usuarios existentes
-  // sigue permitido — solo la CREACIÓN queda restringida.
-  if (
-    body.op === "addDoc" &&
-    (body.collection === "users" || body.collection === "stores") &&
-    !session.isPlatformOwner
-  ) {
-    return NextResponse.json(
-      { error: "Solo el dueño de la plataforma puede crear tiendas o usuarios nuevos" },
-      { status: 403 }
-    )
-  }
-
   try {
-    const outcome = await withCompanyScope(session.accountId, async (client, companyId) => {
+    const outcome = await withCompanyScope(session.accountId, async (client, scope) => {
+      const companyId = scope.companyId
+
       switch (body.op) {
         case "getDoc": {
           const { rows } = await client.query(
@@ -156,11 +144,12 @@ export async function POST(req: NextRequest) {
              FROM documents WHERE collection = $1 AND id = $2 AND company_id = $3`,
             [body.collection, body.id, companyId]
           )
+          const visible = rows.length > 0 && rowVisible(scope, body.collection, body.id, rows[0].data)
           return NextResponse.json({
-            exists: rows.length > 0,
+            exists: visible,
             id: body.id,
-            data: rows[0]?.data ?? null,
-            version: rows[0]?.v ?? null,
+            data: visible ? rows[0].data : null,
+            version: visible ? rows[0].v : null,
           })
         }
 
@@ -169,34 +158,47 @@ export async function POST(req: NextRequest) {
             `SELECT id, data FROM documents WHERE collection = $1 AND company_id = $2`,
             [body.collection, companyId]
           )
-          const filtered = applyQuery(rows, body)
+          const visibleRows = rows.filter((r) => rowVisible(scope, body.collection, r.id, r.data))
+          const filtered = applyQuery(visibleRows, body)
           return NextResponse.json({ docs: filtered.map((r) => ({ id: r.id, data: r.data })) })
         }
 
         case "setDoc": {
-          await writeOne(client, companyId, {
+          const op: WriteOp = {
             type: "set",
             collection: body.collection,
             id: body.id,
             data: body.data,
             merge: !!body.merge,
-          })
+          }
+          const denied = await checkWrites(client, scope, [op])
+          if (denied) return forbidden(denied)
+          await writeOne(client, companyId, op)
           return NextResponse.json({ ok: true })
         }
 
         case "updateDoc": {
-          await writeOne(client, companyId, { type: "update", collection: body.collection, id: body.id, data: body.data })
+          const op: WriteOp = { type: "update", collection: body.collection, id: body.id, data: body.data }
+          const denied = await checkWrites(client, scope, [op])
+          if (denied) return forbidden(denied)
+          await writeOne(client, companyId, op)
           return NextResponse.json({ ok: true })
         }
 
         case "deleteDoc": {
-          await writeOne(client, companyId, { type: "delete", collection: body.collection, id: body.id })
+          const op: WriteOp = { type: "delete", collection: body.collection, id: body.id }
+          const denied = await checkWrites(client, scope, [op])
+          if (denied) return forbidden(denied)
+          await writeOne(client, companyId, op)
           return NextResponse.json({ ok: true })
         }
 
         case "addDoc": {
           const id = genId()
-          await writeOne(client, companyId, { type: "set", collection: body.collection, id, data: body.data })
+          const op: WriteOp = { type: "set", collection: body.collection, id, data: body.data }
+          const denied = await checkWrites(client, scope, [op])
+          if (denied) return forbidden(denied)
+          await writeOne(client, companyId, op)
           return NextResponse.json({ id })
         }
 
@@ -229,7 +231,10 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          for (const op of body.operations || []) {
+          const ops: WriteOp[] = body.operations || []
+          const denied = await checkWrites(client, scope, ops)
+          if (denied) return forbidden(denied)
+          for (const op of ops) {
             await writeOne(client, companyId, op)
           }
           return NextResponse.json({ ok: true })
@@ -240,8 +245,15 @@ export async function POST(req: NextRequest) {
       }
     })
 
-    if (outcome.companyId === null) {
-      return NextResponse.json({ error: "Este usuario no está asociado a ninguna empresa" }, { status: 403 })
+    if (outcome.status === "no_company") {
+      return forbidden("Este usuario no está asociado a ninguna empresa")
+    }
+    if (outcome.status === "disabled") {
+      const message =
+        outcome.reason === "account"
+          ? "Esta cuenta fue desactivada. Contacta al administrador de la plataforma."
+          : "Esta empresa fue desactivada. Contacta al administrador de la plataforma."
+      return NextResponse.json({ error: message, code: `${outcome.reason}_disabled` }, { status: 403 })
     }
     return outcome.result
   } catch (err: any) {

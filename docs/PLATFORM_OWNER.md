@@ -1,146 +1,157 @@
-# Panel de Plataforma (SaaS) — `/plataforma`
+# Panel de Plataforma (SaaS) y modelo de cuentas — `/plataforma`
 
-> Agregado 2026-09-18, ampliado el mismo día con creación de empresas,
-> cuentas de acceso y config SUNAT por empresa. Separado por completo del
-> `/admin` de cada empresa — es el panel del dueño del SaaS (LifeSystemSolution
-> como negocio), no de ningún cliente/empresa individual. El login con la
-> cuenta dueña de la plataforma entra DIRECTO acá — nunca pasa por la
-> pantalla de PIN/selección de tienda (ver sección 7).
+> Agregado 2026-09-18; modelo de cuentas por nivel y control total agregados
+> 2026-09-19. Separado por completo del `/admin` de cada empresa — es el
+> panel del dueño del SaaS, no de ningún cliente. El login con la cuenta dueña
+> de la plataforma entra DIRECTO acá (nunca pasa por PIN/selección de local).
 
-## 1. Qué resuelve
+## 1. Modelo de cuentas: quién entra cómo
 
-El sistema es multi-tenant: varias empresas ("companies"), cada una con 1 o
-varias tiendas ("sedes"), completamente aisladas entre sí por RLS (ver
-[SQL_MIGRATION_PLAN.md](./SQL_MIGRATION_PLAN.md)). El dueño de la plataforma
-necesita una vista que cruce esa frontera — cuántas empresas hay, cuántas
-tiendas y usuarios tiene cada una, y a futuro qué plan/costo le corresponde —
-sin que eso debilite el aislamiento que protege a cada cliente de los demás.
+Cada empresa tiene **dos niveles de cuenta de acceso** (correo + contraseña),
+más los **perfiles con PIN** de cada empleado:
 
-## 2. Quién puede entrar
-
-- `auth_accounts.is_platform_owner` (columna `BOOLEAN`, migración
-  `db/migrations/002_platform_owner.sql`). **Nunca se autoasigna desde la
-  API** — solo se setea a mano en la base de datos.
-- El flag viaja dentro del JWT de sesión (`SessionPayload.isPlatformOwner`,
-  `lib/local/auth.ts`) desde el login (`app/api/auth/login/route.ts`), así
-  que no hace falta una consulta extra en cada request.
-- `contexts/auth-context.tsx` expone `isPlatformOwner` — controla el link
-  "Plataforma" en `components/pos-header.tsx` y el guard de
-  `app/plataforma/layout.tsx`.
-- **Es independiente del rol PIN-based** (admin/cajero/mesero/cocina). Una
-  cuenta puede ser dueña de la plataforma Y ADEMÁS ser miembro normal de su
-  propia empresa (es el caso actual: `acc_johann`) — entra a `/plataforma`
-  sin PIN ni selección de tienda, y por separado puede seguir usando el POS
-  de su empresa como siempre.
-
-## 3. Cómo ve datos de todas las empresas sin romper el aislamiento
-
-`documents` tiene `FORCE ROW LEVEL SECURITY`. La política normal
-(`company_id = current_setting('app.company_id', true)`) es la que aísla a
-cada empresa — ningún usuario común puede tocarla. Se le agregó una segunda
-condición, alcanzable SOLO desde el backend:
-
-```sql
-USING (
-  company_id = current_setting('app.company_id', true)
-  OR current_setting('app.is_platform_owner', true) = 'true'
-)
+```
+Dueño de la plataforma ── /plataforma ── controla TODO (empresas, cuentas, locales, usuarios, planes)
+│
+└─ Empresa "X"
+   ├─ Cuenta de EMPRESA  (company_members.store_id = NULL)      → el SUPER ADMIN. Ve todos los locales.
+   │     entra con su cuenta → pestaña "Super Admin" → su PIN → elige local
+   │
+   ├─ Local A
+   │    └─ Cuenta del LOCAL A (store_id = A) ← la usan TODOS los empleados de A
+   │          mesero / cajero / cocina entran con ESA cuenta → colocan SU PIN → su perfil
+   │
+   └─ Local B
+        └─ Cuenta del LOCAL B (store_id = B)  ← empleados de B; nunca ven nada de A
 ```
 
-`lib/local/pg-client.ts::withPlatformOwnerScope()` es la única función que
-setea `app.is_platform_owner = 'true'` — y solo la llaman rutas
-`app/api/platform/*` que ya verificaron `session.isPlatformOwner === true`
-en el servidor (`lib/local/platform-auth.ts::getPlatformOwnerSession()`).
-Ningún usuario normal puede llegar a setear esa variable, así que la
-aislación entre empresas para todo el resto del sistema no cambia en nada.
+- **Los locales no se mezclan.** Una cuenta de local solo ve/escribe datos de su
+  propio local — lo hace cumplir el **servidor** (sección 4), no solo la UI.
+- Un local **nunca queda sin cuenta**: crearlo (al crear la empresa o con
+  "Agregar local") siempre incluye su cuenta de acceso.
+- El PIN es único dentro de cada local, y el de los roles que cruzan locales
+  (`super_admin`/`admin_global`) es único en toda la empresa — porque el login
+  por PIN toma el primer usuario que coincide, y dos iguales harían que uno
+  entre al perfil del otro.
+- Empresa "demo" (`lifesystemsolution`): `acc_local1/2/3` quedaron atadas a
+  LOCAL DEMO 1/2/3 (migración 004); `acc_admin` sigue siendo de empresa.
 
-Las tablas `companies` y `plans` no tienen RLS (nunca se exponen directo al
-cliente, solo vía estas rutas) — mismo criterio que ya usaba `companies`
-desde antes.
+## 2. Quién es "dueño de la plataforma"
 
-## 4. Rutas
+- `auth_accounts.is_platform_owner` (migración 002). **Nunca se autoasigna
+  desde la API** — solo a mano en la base de datos.
+- Viaja en el JWT (`SessionPayload.isPlatformOwner`). Es independiente del rol
+  PIN: una cuenta puede ser dueña de la plataforma y además miembro normal de
+  una empresa (caso actual: `acc_johann`).
+- Sus cuentas están protegidas: `loadManageableAccount()` impide desactivarlas,
+  cambiarles la contraseña o borrarlas desde `/plataforma`, y una cuenta no
+  puede modificarse a sí misma (evita dejarse afuera por accidente).
+
+## 3. Control total desde `/plataforma`
+
+| Sobre… | Crear | Editar | Activar/desactivar | Eliminar | Otros |
+|---|:-:|:-:|:-:|:-:|---|
+| **Empresa** | ✓ (con Super Admin + 1er local) | nombre, plan, SUNAT | ✓ (corta a todos) | ✓ (cascada, confirma nombre) | — |
+| **Cuenta de acceso** | ✓ (nivel empresa o local) | nivel (re-asignar), contraseña | ✓ (corte inmediato) | ✓ | — |
+| **Local** | ✓ (siempre con su cuenta) | nombre, código | ✓ (arrastra a sus cuentas) | ✓ (cascada, confirma nombre) | — |
+| **Usuario operativo (PIN)** | ✓ (PIN auto o manual) | nombre, rol, local, locales asignados | ✓ | ✓ | regenerar PIN, ver PIN |
+| **Plan** | ✓ | ✓ | ✓ | ✓ | informativo (sin cobro aún) |
+
+- **Desactivar** conserva los datos y corta el acceso en el siguiente request
+  (aunque el JWT de 7 días siga vigente): `withCompanyScope()` revisa
+  `auth_accounts.active` y `companies.active` en la MISMA consulta que resuelve
+  la empresa (cero viajes extra). El navegador abierto se cierra solo y vuelve
+  al login con un aviso (`/?disabled=1`).
+- Desactivar un **local** desactiva también las cuentas atadas a él (así el
+  corte es inmediato) y al reactivarlo las reactiva.
+- **Eliminar** es irreversible: exige escribir el nombre exacto (la UI lo pide y
+  el servidor lo vuelve a exigir con `?confirm=`). Borra en cascada:
+  - Local: todo documento con su `storeId` (pedidos, mesas, productos,
+    inventario, cajas, usuarios, clientes, comprobantes…), sus cuentas de
+    acceso, y lo quita de `assignedStores` de los `admin_global`.
+  - Empresa: todos sus documentos, membresías y cuentas de acceso (la cuenta del
+    dueño de la plataforma nunca se borra, solo pierde la membresía).
+
+## 4. Cómo se hace cumplir (servidor)
+
+Dos capas, ambas en el servidor:
+
+**a) Aislamiento entre empresas — RLS.** `documents` tiene `FORCE ROW LEVEL
+SECURITY`; la política deja pasar `company_id = app.company_id`, o
+`app.is_platform_owner = 'true'` (solo lo setea `withPlatformOwnerScope()`,
+que únicamente llaman las rutas `/api/platform/*` tras verificar
+`isPlatformOwner`). `companies`, `plans` y `auth_accounts` no tienen RLS: solo
+se tocan desde el backend.
+
+**b) Aislamiento entre locales y alta/baja estructural —
+[`lib/local/db-access-policy.ts`](../lib/local/db-access-policy.ts), aplicada por
+[`app/api/db/route.ts`](../app/api/db/route.ts) en cada request:**
+
+- Cuentas de LOCAL: `getDoc/getDocs` solo devuelven filas de su local
+  (`stores` → su id; `users` → estricto por `storeId`, así nunca ven PIN de
+  otros locales ni de roles que cruzan locales; el resto → `data.storeId` propio
+  o sin `storeId`, que es dato compartido de la empresa). Las escrituras a
+  cualquier doc de otro local, o que declaren otro `storeId`, → 403; una
+  operación ajena dentro de un `batch` tumba el batch entero (no se aplica
+  nada).
+- Nadie salvo el dueño de la plataforma puede: crear `users`/`stores` (ni por
+  `addDoc`, ni por `setDoc` con ID propio, ni por `batch` — cerrado el
+  2026-09-19: antes solo se bloqueaba `addDoc`), borrar tiendas, ni asignar los
+  roles `super_admin`/`admin_global`. Editar/desactivar lo que ya existe sigue
+  permitido a los admins de la empresa (dentro de su alcance).
+- Cuenta o empresa desactivada → 403 con `code: account_disabled |
+  company_disabled`.
+
+El relay `/api/realtime` se **eliminó** (2026-09-19): era código muerto (no
+funciona en Vercel serverless) y, con cuentas de local, habría filtrado eventos
+de todos los locales de la empresa.
+
+## 5. Rutas de plataforma (todas exigen `isPlatformOwner`)
 
 | Ruta | Qué hace |
 |---|---|
-| `GET /api/platform/companies` | Lista empresas con cantidad de tiendas y usuarios |
-| `POST /api/platform/companies` | **Bootstrapea una empresa nueva completa**: `companies` + primera cuenta de login + tienda inicial + usuario operativo admin (PIN), todo en una transacción. Devuelve el PIN generado (una sola vez). |
-| `GET /api/platform/companies/[id]` | Detalle: info + cuentas de acceso + tiendas + usuarios operativos + config SUNAT |
-| `PATCH /api/platform/companies/[id]` | Actualiza `name`/`plan`/`active`/`sunatSettings` de una empresa |
-| `POST /api/platform/companies/[id]/members` | Agrega otra cuenta de login a una empresa ya existente (ej. segundo admin) |
-| `DELETE /api/platform/companies/[id]/members?accountId=X` | Quita el acceso de una cuenta |
-| `POST /api/platform/companies/[id]/stores` | Agrega una tienda a una empresa existente — 10 mesas + inventario base de pizza (mismo shape que `initializeStoreData()`) |
-| `POST /api/platform/companies/[id]/users` | Agrega un usuario operativo (PIN, generado automáticamente) a una empresa existente |
-| `GET /api/platform/stores` | Lista todas las tiendas de todas las empresas |
-| `GET /api/platform/users` | Lista cuentas de login (`auth_accounts`) con su empresa — nunca expone `password_hash` |
-| `GET/POST/PATCH/DELETE /api/platform/plans` | CRUD de planes de suscripción |
+| `GET/POST /api/platform/companies` | Listar / **crear empresa completa** en una transacción: cuenta de empresa (Super Admin) + 1er local con SU cuenta + usuario `super_admin` y `admin` con PIN únicos (devueltos una sola vez) |
+| `GET/PATCH/DELETE /api/platform/companies/[id]` | Detalle completo (incluye PIN) / nombre-plan-activa-SUNAT / eliminar (`?confirm=`) |
+| `POST /api/platform/companies/[id]/members` | Cuenta nueva: sin `storeId` = empresa, con `storeId` = local |
+| `PATCH/DELETE …/members/[accountId]` | `active`, `password`, `storeId` (re-asignar) / eliminar |
+| `POST …/stores` | Local nuevo: 10 mesas + inventario base + SU cuenta (`accountEmail/accountPassword`) |
+| `PATCH/DELETE …/stores/[storeId]` | nombre/código/`active` (arrastra cuentas) / eliminar en cascada (`?confirm=`) |
+| `POST …/users` | Usuario operativo (PIN auto o manual; rol ↔ local validados) |
+| `PATCH/DELETE …/users/[userId]` | nombre/rol/local/PIN/`regeneratePin`/`active`/`assignedStores` / eliminar |
+| `GET /api/platform/stores`, `GET /api/platform/users` | Vistas globales (locales; cuentas con nivel y estado) |
+| `GET/POST/PATCH/DELETE /api/platform/plans` | CRUD de planes |
 
-### 4.1 Crear tiendas/usuarios es EXCLUSIVO de estas rutas
+Errores esperados (correo duplicado, PIN repetido, local que no es de la
+empresa…) responden 4xx con mensaje claro vía `runOwnerRoute()`.
 
-Desde 2026-09-18, `/admin` (el panel de cada empresa) ya no tiene forma de
-crear tiendas ni usuarios operativos nuevos — los botones se quitaron, y
-`app/api/db/route.ts` rechaza con 403 cualquier `addDoc` sobre las
-colecciones `users`/`stores` si la sesión no tiene `isPlatformOwner: true`,
-sin importar el rol (`super_admin` de empresa incluido). Esto se decidió a
-nivel de negocio: el dueño de la plataforma quiere ser el único punto de alta
-de tiendas/usuarios/cuentas de acceso. `/admin` conserva **editar y
-desactivar** los que ya existen — solo la creación quedó centralizada acá.
+## 6. Páginas
 
-Todas devuelven 403 si el JWT no trae `isPlatformOwner: true`.
+- `/plataforma` — resumen + **Crear empresa** (dos secciones: cuenta del Super
+  Admin, y primer local con su cuenta; al terminar muestra ambas cuentas y los
+  PIN, con botón "Copiar credenciales").
+- `/plataforma/empresas/[id]` — el panel de control de una empresa: información
+  (nombre/plan/estado/eliminar), cuentas de acceso, locales, usuarios operativos
+  (PIN oculto con ojo, filtro por local, regenerar PIN) y SUNAT. Los borrados
+  destructivos piden escribir el nombre.
+- `/plataforma/usuarios` — cuentas de todas las empresas (nivel y estado).
+- `/plataforma/planes` — CRUD de planes (informativo, sin cobro aún).
 
-## 5. Páginas
+## 7. SUNAT por empresa — qué hace y qué le falta
 
-- `/plataforma` — resumen: empresas (plan, tiendas, usuarios, activa/no) +
-  tiendas y a qué empresa pertenece cada una ("las conexiones"). Botón
-  **"Crear empresa"**: pide nombre, plan, nombre de la primera tienda, correo
-  y contraseña del admin — al crear muestra el PIN operativo generado (única
-  vez que se ve).
-- `/plataforma/empresas/[id]` — detalle de una empresa:
-  - Info general: plan (selector) y activa/inactiva, con guardado.
-  - Cuentas de acceso (correo/contraseña): agregar o quitar.
-  - Tiendas de la empresa: **agregar** ("10 mesas + inventario de pizza,
-    lista para usar) — cuentan contra el límite de tiendas del plan. Editar
-    una existente sigue siendo cosa del `/admin` de la empresa.
-  - Usuarios operativos con PIN: **agregar** (nombre, rol, tienda — el PIN se
-    genera solo y se muestra una vez). Editar/desactivar uno existente sigue
-    siendo cosa del `/admin` de la empresa.
-  - **Conexión SUNAT de esta empresa**: URL base, API Key, API Secret,
-    guardados en `companies.sunat_settings` (JSONB). Ver sección 6.
-- `/plataforma/usuarios` — cuentas de login de todas las empresas (vista
-  plana, cruzando empresas — complementa la vista por-empresa de arriba).
-- `/plataforma/planes` — CRUD de planes (nombre, máximo de tiendas, costo
-  mensual, moneda, activo/inactivo). **Informativo por ahora**: no hay cobro
-  automático conectado, es la base para cuando se active la facturación.
-
-## 6. SUNAT por empresa — qué hace y qué le falta
-
-Cada empresa tiene su propio RUC, así que no puede compartir una sola config
-de SUNAT global. `companies.sunat_settings` (JSONB: `{baseUrl, apiKey,
-apiSecret, configured}`) guarda esa config por empresa, editable desde
-`/plataforma/empresas/[id]`.
-
-**Todavía NO está conectado a la emisión real de comprobantes** —
-`app/api/facturacion/route.ts` sigue leyendo `SUNAT_API_BASE_URL`/`KEY`/
-`SECRET` de las variables de entorno globales de Vercel (una sola config
-para todas las empresas). Falta, para la siguiente etapa:
-- Que `app/api/facturacion/route.ts` resuelva `company_id` desde la sesión y
-  lea `companies.sunat_settings` de esa empresa en vez del `process.env`
-  global.
-- Decidir qué pasa si una empresa no tiene `sunat_settings.configured` — hoy
-  el dashboard ya oculta las alarmas de SUNAT cuando no está configurado
-  (ver TESTING_REPORT.md), ese comportamiento debería aplicar por empresa.
-
-## 7. Login del dueño de la plataforma
-
-`app/page.tsx` tiene un `useEffect` que redirige a `/plataforma` apenas
-`isFirebaseAuthenticated && isPlatformOwner` son ambos verdaderos — antes de
-que la pantalla de PIN llegue a mostrarse. No pasa por selección de
-tienda ni PIN operativo en ningún momento.
+`companies.sunat_settings` (JSONB: `{baseUrl, apiKey, apiSecret, configured}`)
+guarda la config por empresa, editable desde `/plataforma/empresas/[id]`.
+**Todavía NO está conectado a la emisión real** — `app/api/facturacion/route.ts`
+sigue leyendo `SUNAT_API_*` de las variables de entorno globales. Falta:
+- Que esa ruta resuelva `company_id` desde la sesión y lea
+  `companies.sunat_settings` en vez del `process.env` global.
+- Ojo: `app/api/facturacion` y `app/api/consultas/documento` **no exigen
+  sesión hoy** (cualquiera que conozca la URL puede llamarlas). Con SUNAT sin
+  configurar es inofensivo, pero hay que cerrarlo antes de activarlo.
 
 ## 8. Qué falta para "facturación real" del SaaS
 
-Los planes hoy son solo datos — falta:
-- Validar en `createOrderTransaction`/creación de tienda que una empresa no
-  supere `max_stores` de su plan — no implementado, es de negocio decidir si
-  se bloquea o solo se avisa.
-- Integración de cobro (Stripe/Culqi/etc.) — fuera de alcance de esta
-  primera versión.
+- Validar que una empresa no supere `max_stores` de su plan al agregar un local
+  (hoy no se bloquea ni se avisa — decisión de negocio).
+- Integración de cobro (Stripe/Culqi/etc.).
+- Cambiar la contraseña no invalida los JWT ya emitidos (duran 7 días);
+  **desactivar** la cuenta sí corta de inmediato — usar eso si hay urgencia.

@@ -9,7 +9,16 @@
  */
 const STORAGE_KEY = "lss_session"
 
-export type StoredSession = { token: string; accountId: string; email: string; isPlatformOwner?: boolean }
+export type StoredSession = {
+  token: string
+  accountId: string
+  email: string
+  isPlatformOwner?: boolean
+  // Local al que está atada la cuenta (null/undefined = cuenta de empresa).
+  // Solo es una pista para la UI — el servidor es quien realmente lo hace
+  // cumplir en cada request (lib/local/db-access-policy.ts).
+  storeId?: string | null
+}
 
 export function getStoredSession(): StoredSession | null {
   if (typeof window === "undefined") return null

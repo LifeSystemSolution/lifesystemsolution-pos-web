@@ -19,7 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Building2, Store as StoreIcon, Plus, ChevronRight } from "lucide-react"
+import { Building2, Store as StoreIcon, Plus, ChevronRight, Copy } from "lucide-react"
 
 interface CompanyRow {
   id: string
@@ -50,9 +50,18 @@ interface PlanRow {
 const emptyForm = {
   name: "",
   plan: "trial",
+  superEmail: "",
+  superPassword: "",
   storeName: "",
-  adminEmail: "",
-  adminPassword: "",
+  storeCode: "",
+  storeEmail: "",
+  storePassword: "",
+}
+
+interface CreatedInfo {
+  companyName: string
+  superAdmin: { email: string; password: string; pin: string }
+  store: { name: string; accountEmail: string; password: string; pin: string }
 }
 
 export default function PlataformaPage() {
@@ -65,7 +74,7 @@ export default function PlataformaPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
-  const [createdInfo, setCreatedInfo] = useState<{ adminEmail: string; operationalPin: string } | null>(null)
+  const [createdInfo, setCreatedInfo] = useState<CreatedInfo | null>(null)
 
   const loadAll = async () => {
     try {
@@ -95,22 +104,68 @@ export default function PlataformaPage() {
   }
 
   const handleCreate = async () => {
-    if (!form.name.trim() || !form.adminEmail.trim() || !form.adminPassword.trim()) {
-      alert("Nombre, correo y contraseña del admin son requeridos")
+    if (
+      !form.name.trim() ||
+      !form.superEmail.trim() ||
+      !form.superPassword.trim() ||
+      !form.storeEmail.trim() ||
+      !form.storePassword.trim()
+    ) {
+      alert("Completa el nombre, la cuenta del Super Admin y la cuenta del primer local")
       return
     }
     setIsSaving(true)
     try {
       const res = await platformFetch("/api/platform/companies", {
         method: "POST",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          name: form.name,
+          plan: form.plan,
+          superAdmin: { email: form.superEmail, password: form.superPassword },
+          store: {
+            name: form.storeName,
+            code: form.storeCode,
+            accountEmail: form.storeEmail,
+            accountPassword: form.storePassword,
+          },
+        }),
       })
-      setCreatedInfo({ adminEmail: res.adminEmail, operationalPin: res.operationalPin })
+      setCreatedInfo({
+        companyName: form.name.trim(),
+        superAdmin: { email: res.superAdmin.email, password: form.superPassword, pin: res.superAdmin.pin },
+        store: {
+          name: res.store.name,
+          accountEmail: res.store.accountEmail,
+          password: form.storePassword,
+          pin: res.store.pin,
+        },
+      })
       await loadAll()
     } catch (err: any) {
       alert(err.message || "Error creando la empresa")
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const copyCredentials = async (info: CreatedInfo) => {
+    const text = [
+      `Empresa: ${info.companyName}`,
+      "",
+      "SUPER ADMIN (ve todos los locales)",
+      `  Cuenta: ${info.superAdmin.email}`,
+      `  Contraseña: ${info.superAdmin.password}`,
+      `  PIN de Super Admin: ${info.superAdmin.pin}`,
+      "",
+      `LOCAL: ${info.store.name} (cuenta que usan los empleados de este local)`,
+      `  Cuenta: ${info.store.accountEmail}`,
+      `  Contraseña: ${info.store.password}`,
+      `  PIN del administrador del local: ${info.store.pin}`,
+    ].join("\n")
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      alert("No se pudo copiar automáticamente — copia los datos a mano.")
     }
   }
 
@@ -273,26 +328,39 @@ export default function PlataformaPage() {
 
       {/* Create company dialog */}
       <Dialog open={showCreate} onOpenChange={(open) => { setShowCreate(open); if (!open) setCreatedInfo(null) }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           {createdInfo ? (
             <>
               <DialogHeader>
-                <DialogTitle>Empresa creada</DialogTitle>
+                <DialogTitle>Empresa creada: {createdInfo.companyName}</DialogTitle>
                 <DialogDescription>
-                  Guarda estos datos — el PIN operativo no se vuelve a mostrar.
+                  Guarda estos datos — los PIN no se vuelven a mostrar (después puedes verlos o regenerarlos
+                  desde la empresa).
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 py-2">
                 <div className="p-3 rounded-lg bg-muted/50 border border-border space-y-1">
-                  <p className="text-xs text-muted-foreground">Correo de acceso (admin)</p>
-                  <p className="font-mono text-sm">{createdInfo.adminEmail}</p>
+                  <p className="text-xs font-semibold text-primary">SUPER ADMIN — ve todos los locales</p>
+                  <p className="text-xs text-muted-foreground">Cuenta</p>
+                  <p className="font-mono text-sm break-all">{createdInfo.superAdmin.email}</p>
+                  <p className="text-xs text-muted-foreground pt-1">PIN de Super Admin</p>
+                  <p className="font-mono text-2xl tracking-widest">{createdInfo.superAdmin.pin}</p>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/50 border border-border space-y-1">
-                  <p className="text-xs text-muted-foreground">PIN operativo inicial (para /admin, /caja, etc.)</p>
-                  <p className="font-mono text-2xl tracking-widest">{createdInfo.operationalPin}</p>
+                  <p className="text-xs font-semibold text-primary">LOCAL: {createdInfo.store.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Cuenta que usan los empleados de este local (luego cada uno pone su PIN)
+                  </p>
+                  <p className="font-mono text-sm break-all">{createdInfo.store.accountEmail}</p>
+                  <p className="text-xs text-muted-foreground pt-1">PIN del administrador del local</p>
+                  <p className="font-mono text-2xl tracking-widest">{createdInfo.store.pin}</p>
                 </div>
               </div>
               <DialogFooter>
+                <Button variant="outline" onClick={() => copyCredentials(createdInfo)}>
+                  <Copy className="h-4 w-4 mr-1" />
+                  Copiar credenciales
+                </Button>
                 <Button onClick={() => { setShowCreate(false); setCreatedInfo(null) }}>Listo</Button>
               </DialogFooter>
             </>
@@ -301,7 +369,8 @@ export default function PlataformaPage() {
               <DialogHeader>
                 <DialogTitle>Crear empresa</DialogTitle>
                 <DialogDescription>
-                  Crea la empresa, su primera tienda y la cuenta de acceso del administrador.
+                  Cada empresa tiene una cuenta de Super Admin y, por cada local, una cuenta propia que usan
+                  sus empleados. Los locales no se mezclan entre sí.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
@@ -329,31 +398,67 @@ export default function PlataformaPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Nombre de la primera tienda</Label>
-                  <Input
-                    placeholder="Ej: Sede Principal"
-                    value={form.storeName}
-                    onChange={(e) => setForm({ ...form, storeName: e.target.value })}
-                  />
+
+                <div className="p-3 rounded-lg border border-border space-y-3">
+                  <p className="text-sm font-semibold">1. Cuenta del Super Admin (empresa)</p>
+                  <div className="space-y-2">
+                    <Label>Correo</Label>
+                    <Input
+                      type="email"
+                      placeholder="dueño@empresa.com"
+                      value={form.superEmail}
+                      onChange={(e) => setForm({ ...form, superEmail: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Contraseña</Label>
+                    <Input
+                      type="password"
+                      placeholder="Mínimo 8 caracteres"
+                      value={form.superPassword}
+                      onChange={(e) => setForm({ ...form, superPassword: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Correo del administrador</Label>
-                  <Input
-                    type="email"
-                    placeholder="admin@empresa.com"
-                    value={form.adminEmail}
-                    onChange={(e) => setForm({ ...form, adminEmail: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Contraseña inicial</Label>
-                  <Input
-                    type="password"
-                    placeholder="Mínimo 8 caracteres"
-                    value={form.adminPassword}
-                    onChange={(e) => setForm({ ...form, adminPassword: e.target.value })}
-                  />
+
+                <div className="p-3 rounded-lg border border-border space-y-3">
+                  <p className="text-sm font-semibold">2. Primer local y su cuenta</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Nombre del local</Label>
+                      <Input
+                        placeholder="Ej: Sede Central"
+                        value={form.storeName}
+                        onChange={(e) => setForm({ ...form, storeName: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Código (opcional)</Label>
+                      <Input
+                        placeholder="Ej: CENTRAL"
+                        value={form.storeCode}
+                        onChange={(e) => setForm({ ...form, storeCode: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Correo de la cuenta del local</Label>
+                    <Input
+                      type="email"
+                      placeholder="central@empresa.com"
+                      value={form.storeEmail}
+                      onChange={(e) => setForm({ ...form, storeEmail: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Contraseña de la cuenta del local</Label>
+                    <Input
+                      type="password"
+                      placeholder="Mínimo 8 caracteres"
+                      value={form.storePassword}
+                      onChange={(e) => setForm({ ...form, storePassword: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
               <DialogFooter>

@@ -50,10 +50,18 @@ type Permission =
 > [PLATFORM_OWNER.md](./PLATFORM_OWNER.md)) — ni `super_admin` ni `admin` de
 > una empresa pueden hacerlo, aunque `manage_users`/`manage_stores` les diga
 > que sí en esta tabla. La restricción real vive en el servidor
-> (`app/api/db/route.ts` rechaza `addDoc` sobre `users`/`stores` si la sesión
-> no tiene `isPlatformOwner: true`), no solo en la UI — así que no hay forma
-> de saltarla llamando el endpoint directo. `manage_users`/`manage_stores`
-> siguen gobernando **editar/desactivar** los que ya existen, eso no cambió.
+> (`lib/local/db-access-policy.ts`, aplicada por `app/api/db/route.ts`:
+> rechaza crear `users`/`stores` — por `addDoc`, `setDoc` con ID propio o
+> `batch` —, borrar tiendas y asignar los roles `super_admin`/`admin_global`
+> si la sesión no es del dueño de la plataforma), no solo en la UI — así que no
+> hay forma de saltarla llamando el endpoint directo. `manage_users`/
+> `manage_stores` siguen gobernando **editar/desactivar** los que ya existen.
+>
+> **Alcance por local.** Además, una cuenta de acceso puede estar atada a UN
+> local (cuenta de local: la usan los empleados de ese local) o a la empresa
+> completa (cuenta de empresa: el Super Admin). Una cuenta de local solo ve y
+> escribe datos de su local, sin importar el rol del usuario con PIN que
+> tenga puesto. Ver [PLATFORM_OWNER.md](./PLATFORM_OWNER.md) sección 1.
 
 ### 1.3 Uso en componentes
 
