@@ -78,3 +78,29 @@ el servidor. Configura **exactamente** las cuatro variables siguientes:
 * Faltan rate limiting de login, pruebas automatizadas de integración,
   monitorización/alertas, backup/restore probado y una política formal de
   rotación de secretos.
+
+## Rendimiento con varias terminales
+
+El plan gratuito de Supabase puede atender seis terminales para un local
+pequeño. Antes de contratar un host mayor, verifica la región (paso 1), usa el
+*Transaction pooler* (paso 5) y mide `/api/health/database` y los logs de
+Vercel. Esta versión elimina una suscripción duplicada de pedidos en cada
+terminal, pero el adaptador de datos sigue haciendo *polling* cada 3 segundos
+y el endpoint lee la colección completa antes de filtrar. Por ello, si la
+lentitud aumenta conforme crece el historial, el cuello de botella es el
+acceso a datos, no necesariamente el plan gratuito.
+
+La siguiente optimización prioritaria es sustituir las lecturas genéricas de
+`documents` de pedidos, inventario y productos por consultas SQL paginadas e
+indexadas por `company_id`, `storeId`, `paymentStatus` y fecha. No aumentes el
+intervalo de polling para "arreglar" la carga: solo retrasaría cocina y caja.
+
+## Impresión automática de cocina
+
+Al enviar un pedido, la terminal que lo registra abre e imprime la comanda con
+solo los productos del envío actual; al agregar productos a una mesa, no se
+reimprime el pedido anterior. Configura en esa terminal el navegador y el
+driver para usar la impresora de cocina. Vercel no puede acceder directamente
+a una impresora USB o de red dentro del local: para impresión silenciosa o una
+impresora conectada a otra PC se requiere un agente local/servicio de impresión
+en la red del negocio.
