@@ -158,7 +158,7 @@ export default function CajaPage() {
   // Filter orders ready for payment (pending payment and ready/delivered) - memoized
   const pendingPaymentOrders = useMemo(() => 
     orders.filter(
-      (o) => o.paymentStatus === "pending" && (o.status === "ready" || o.status === "delivered")
+      (o) => o.paymentStatus === "pending" && o.status === "delivered"
     ), [orders]
   )
 

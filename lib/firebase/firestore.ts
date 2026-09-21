@@ -661,6 +661,30 @@ export async function hardDeleteDocument(collectionName: string, docId: string):
   await deleteDoc(docRef)
 }
 
+/** Remove the product and every operational inventory row associated with it.
+ * Pizza flavours deliberately have no row of their own: their stock belongs
+ * to the five shared dough sizes, so those rows are left intact. */
+export async function removeProductInventory(product: Product): Promise<void> {
+  if (!product.id) throw new Error("Producto no encontrado")
+
+  const inventoryQuery = query(
+    collection(db, collections.inventoryItems),
+    where("storeId", "==", product.storeId),
+    where("productId", "==", product.id)
+  )
+  const inventoryDocs = await getDocs(inventoryQuery)
+  const batch = writeBatch(db)
+  for (const inventoryDoc of inventoryDocs.docs) {
+    batch.delete(doc(db, collections.inventoryItems, inventoryDoc.id))
+  }
+  await batch.commit()
+}
+
+export async function deleteProductWithInventory(product: Product): Promise<void> {
+  await removeProductInventory(product)
+  await deleteDoc(doc(db, collections.products, product.id!))
+}
+
 // Store-specific queries
 export async function getStoreByCode(code: string): Promise<Store | null> {
   const stores = await getDocuments<Store>(collections.stores, where("code", "==", code))
@@ -1389,7 +1413,11 @@ async function deductInventoryInTransaction(
       throw new Error(`Stock inválido para inventario ${invItemId}`)
     }
 
-    const newStock = Math.max(0, currentStock - deduction.quantity)
+    if (currentStock < deduction.quantity) {
+      throw new Error(`Stock insuficiente para ${deduction.item.productName}. Disponible: ${currentStock}`)
+    }
+
+    const newStock = currentStock - deduction.quantity
 
     console.log("[Inventory:deduct:before]", {
       invItemId,
@@ -2225,6 +2253,10 @@ export async function processPaymentTransaction(
 
     if (orderData.paymentStatus === "paid") {
       throw new Error("Este pedido ya fue pagado")
+    }
+
+    if (orderData.status !== "delivered") {
+      throw new Error("El pedido debe marcarse como entregado antes de cobrarlo")
     }
 
     // 5. Validate payment amount
