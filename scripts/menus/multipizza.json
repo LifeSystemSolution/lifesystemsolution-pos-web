@@ -1,0 +1,96 @@
+{
+  "_nota": "Carta de Multipizza (precios en S/). pizzas: priceMap por tamaño. Resto: price (precio único) o variants (tamaño/salsa/sabor, cada una con su inventario).",
+  "products": [
+    { "category": "pizzas", "name": "A lo Multipizza", "description": "Mozzarella, chorizo, cabanossi, tocino, aceituna verde, cebolla blanca", "priceMap": { "BIPERSONAL": 16.90, "FAMILIAR": 37.90, "GIGANTE": 42.90, "SUPER_GIGANTE": 52.90 } },
+    { "category": "pizzas", "name": "Suprema", "description": "Mozzarella, jamón, filete de pollo en trocitos, tocino, cabanossi", "priceMap": { "FAMILIAR": 37.90, "GIGANTE": 42.90, "SUPER_GIGANTE": 52.90 } },
+    { "category": "pizzas", "name": "4x4", "description": "¼ italiana + ¼ hawaiana + ¼ francesa + ¼ española", "priceMap": { "FAMILIAR": 37.90, "GIGANTE": 42.90, "SUPER_GIGANTE": 52.90 } },
+    { "category": "pizzas", "name": "Italiana", "description": "Chorizo parrillero, chorizo, salame, tocino, cabanossi, aceituna, champiñones, mozzarella y piña", "priceMap": { "BIPERSONAL": 15.90, "FAMILIAR": 37.90, "GIGANTE": 42.90, "SUPER_GIGANTE": 52.90 } },
+    { "category": "pizzas", "name": "Argentina", "description": "Salame, tocino, cabanossi, chorizo y mozzarella", "priceMap": { "BIPERSONAL": 15.90, "FAMILIAR": 33.90, "GIGANTE": 37.90, "SUPER_GIGANTE": 46.90 } },
+    { "category": "pizzas", "name": "Hawaiana", "description": "Jamón, mozzarella, piña y durazno", "priceMap": { "PERSONAL": 9.00, "BIPERSONAL": 15.90, "FAMILIAR": 33.90, "GIGANTE": 37.90, "SUPER_GIGANTE": 46.90 } },
+    { "category": "pizzas", "name": "Africana", "description": "Chorizo, salame, tocino, cabanossi, trocitos de hamburguesa y mozzarella", "priceMap": { "BIPERSONAL": 15.90, "FAMILIAR": 35.90, "GIGANTE": 40.90, "SUPER_GIGANTE": 46.90 } },
+    { "category": "pizzas", "name": "Americana Doble", "description": "Doble queso y doble jamón", "priceMap": { "BIPERSONAL": 15.90, "FAMILIAR": 33.90, "GIGANTE": 37.90, "SUPER_GIGANTE": 46.90 } },
+    { "category": "pizzas", "name": "Americana", "description": "Mozzarella y jamón", "priceMap": { "PERSONAL": 8.00, "BIPERSONAL": 14.90, "FAMILIAR": 27.90, "GIGANTE": 32.90, "SUPER_GIGANTE": 40.90 } },
+    { "category": "pizzas", "name": "Francesa", "description": "Jamón, tocino, pimentón, champiñones, mozzarella", "priceMap": { "BIPERSONAL": 15.90, "FAMILIAR": 32.90, "GIGANTE": 37.90, "SUPER_GIGANTE": 45.90 } },
+    { "category": "pizzas", "name": "Alemana", "description": "Mozzarella, salame, chorizo, hot dog, tocino", "priceMap": { "BIPERSONAL": 15.90, "FAMILIAR": 32.90, "GIGANTE": 37.90, "SUPER_GIGANTE": 46.90 } },
+    { "category": "pizzas", "name": "Pepperoni", "description": "Mozzarella, pepperoni", "priceMap": { "PERSONAL": 8.50, "BIPERSONAL": 14.90, "FAMILIAR": 28.90, "GIGANTE": 33.90, "SUPER_GIGANTE": 40.90 } },
+
+    { "category": "PASTAS", "name": "Lasagna", "description": "Salsa a lo Multipizza: champiñones, aceitunas, jamón y mozzarella. Salsa 2 carnes: salsa de carne, cabanossi y tocino.", "variants": [
+      { "name": "Salsa de carne", "price": 19.00 }, { "name": "2 carnes", "price": 21.90 }, { "name": "Con champiñones", "price": 19.50 }, { "name": "A lo Multipizza", "price": 21.90 } ] },
+    { "category": "PASTAS", "name": "Ravioles", "description": "Salsa a lo Multipizza: champiñones, aceitunas, jamón y mozzarella. Salsa 2 carnes: salsa de carne, cabanossi y tocino.", "variants": [
+      { "name": "Salsa de carne", "price": 19.90 }, { "name": "2 carnes", "price": 21.90 }, { "name": "Carne a lo Multipizza", "price": 20.90 }, { "name": "Alfredo", "price": 19.50 }, { "name": "Alfredo a lo Multipizza", "price": 20.90 } ] },
+    { "category": "PASTAS", "name": "Fetuccini", "description": "Salsa a lo Multipizza: champiñones, aceitunas, jamón y mozzarella. Salsa 2 carnes: salsa de carne, cabanossi y tocino.", "variants": [
+      { "name": "Salsa de carne", "price": 16.50 }, { "name": "2 carnes", "price": 17.00 }, { "name": "Salsa de carne a lo Multipizza", "price": 17.50 }, { "name": "Alfredo a lo Multipizza", "price": 17.50 }, { "name": "A lo alfredo", "price": 17.00 } ] },
+
+    { "category": "COMPLEMENTOS", "name": "Filete de pollo (200 g)", "description": "A la plancha", "price": 11.90 },
+    { "category": "COMPLEMENTOS", "name": "Filete a la plancha con papas fritas", "price": 18.90 },
+    { "category": "COMPLEMENTOS", "name": "Filete a lo Multipizza con papas fritas", "description": "Gratinado con mozzarella, tocino y jamón", "price": 22.90 },
+    { "category": "COMPLEMENTOS", "name": "Nuggets con papas fritas", "price": 16.90 },
+
+    { "category": "ALITAS", "name": "Alitas picantes + papas (8 unid.)", "price": 25.90 },
+    { "category": "ALITAS", "name": "Alitas BBQ + papas (8 unid.)", "price": 25.90 },
+    { "category": "ALITAS", "name": "Alitas broaster + papas (8 unid.)", "price": 25.90 },
+    { "category": "ALITAS", "name": "Alitas 3 sabores", "description": "5 BBQ + 5 picantes + 5 broaster", "price": 32.90 },
+
+    { "category": "PIQUEOS", "name": "Chicharrón de pollo", "description": "Porción", "price": 13.90 },
+    { "category": "PIQUEOS", "name": "Nuggets (8 unid.)", "price": 10.90 },
+    { "category": "PIQUEOS", "name": "Pan al ajo", "variants": [ { "name": "Simple", "price": 6.00 }, { "name": "Especial", "price": 10.50 }, { "name": "Mixto", "price": 11.70 } ] },
+    { "category": "PIQUEOS", "name": "Tequeños de jamón y queso", "description": "Porción", "price": 12.90 },
+
+    { "category": "BEBIDAS", "name": "Gaseosa", "variants": [ { "name": "Personal", "price": 3 }, { "name": "½ L", "price": 4 }, { "name": "1 L", "price": 7 }, { "name": "1½ L", "price": 9 } ] },
+    { "category": "BEBIDAS", "name": "Agua", "price": 4 },
+    { "category": "BEBIDAS", "name": "Limonada", "variants": [ { "name": "Vaso", "price": 5.90 }, { "name": "Jarra", "price": 15.90 } ] },
+    { "category": "BEBIDAS", "name": "Limonada frozen", "variants": [ { "name": "Vaso", "price": 6.90 }, { "name": "Jarra", "price": 15.90 } ] },
+    { "category": "BEBIDAS", "name": "Chicha morada", "variants": [ { "name": "Vaso", "price": 5.90 }, { "name": "Jarra", "price": 14.90 } ] },
+    { "category": "BEBIDAS", "name": "Chicha morada frozen", "variants": [ { "name": "Vaso", "price": 6.90 }, { "name": "Jarra", "price": 16.90 } ] },
+    { "category": "BEBIDAS", "name": "Maracuyá frozen", "variants": [ { "name": "Vaso", "price": 7.90 }, { "name": "Jarra", "price": 17.90 } ] },
+    { "category": "BEBIDAS", "name": "Refrescante", "description": "Schweppes + hielo + sabor", "variants": [ { "name": "Clásico", "price": 12.90 }, { "name": "Maracuyá", "price": 12.90 }, { "name": "Mango", "price": 12.90 }, { "name": "Maracumango", "price": 12.90 }, { "name": "Fresa", "price": 12.90 } ] },
+    { "category": "BEBIDAS", "name": "Frozen de frutas", "variants": [ { "name": "Clásico", "price": 16.90 }, { "name": "Maracuyá", "price": 16.90 }, { "name": "Mango", "price": 16.90 }, { "name": "Maracumango", "price": 16.90 }, { "name": "Fresa", "price": 16.90 } ] },
+    { "category": "BEBIDAS", "name": "Infusión", "variants": [ { "name": "Té", "price": 3.90 }, { "name": "Café", "price": 3.90 }, { "name": "Manzanilla", "price": 3.90 } ] },
+
+    { "category": "CERVEZAS", "name": "Cerveza Cristal", "description": "Botella chica", "price": 8.90 },
+    { "category": "CERVEZAS", "name": "Cerveza Pilsen", "description": "Botella chica", "price": 8.90 },
+    { "category": "CERVEZAS", "name": "Cerveza Dorada", "description": "Botella chica", "price": 9.90 },
+    { "category": "CERVEZAS", "name": "Cerveza Negra", "description": "Botella chica", "price": 9.90 },
+    { "category": "CERVEZAS", "name": "Cerveza Trigo", "description": "Botella chica", "price": 9.90 },
+    { "category": "CERVEZAS", "name": "Cerveza Pacífico", "description": "Botella chica", "price": 9.90 },
+    { "category": "CERVEZAS", "name": "Cerveza Budweiser", "description": "Botella chica", "price": 9.90 },
+    { "category": "CERVEZAS", "name": "Cerveza Becks", "description": "Botella chica", "price": 9.90 },
+    { "category": "CERVEZAS", "name": "Cerveza Corona", "description": "Botella chica", "price": 9.90 },
+    { "category": "CERVEZAS", "name": "Cerveza Stella Artois", "description": "Botella chica", "price": 9.90 },
+    { "category": "CERVEZAS", "name": "Margarita Corona", "variants": [ { "name": "Maracuyá", "price": 29.90 }, { "name": "Maracumango", "price": 29.90 }, { "name": "Fresa", "price": 29.90 }, { "name": "Mango", "price": 29.90 } ] },
+
+    { "category": "CÓCTELES", "name": "Tequila Sunrise", "price": 17.90 },
+    { "category": "CÓCTELES", "name": "Laguna Azul", "price": 17.90 },
+    { "category": "CÓCTELES", "name": "Pisco sour", "variants": [ { "name": "Clásico", "price": 12.90 }, { "name": "Maracuyá", "price": 14.90 }, { "name": "Mango", "price": 14.90 }, { "name": "Maracumango", "price": 14.90 }, { "name": "Fresa", "price": 14.90 } ] },
+    { "category": "CÓCTELES", "name": "Chilcano", "variants": [ { "name": "Clásico", "price": 15.90 }, { "name": "Maracuyá", "price": 15.90 }, { "name": "Mango", "price": 15.90 }, { "name": "Maracumango", "price": 15.90 }, { "name": "Fresa", "price": 15.90 } ] },
+    { "category": "CÓCTELES", "name": "Daiquiri", "variants": [ { "name": "Clásico", "price": 16.90 }, { "name": "Maracuyá", "price": 16.90 }, { "name": "Mango", "price": 16.90 }, { "name": "Maracumango", "price": 16.90 }, { "name": "Fresa", "price": 16.90 }, { "name": "Durazno", "price": 17.90 } ] },
+    { "category": "CÓCTELES", "name": "Mojito", "variants": [ { "name": "Clásico", "price": 15.90 }, { "name": "Maracuyá", "price": 15.90 }, { "name": "Mango", "price": 15.90 }, { "name": "Maracumango", "price": 15.90 }, { "name": "Fresa", "price": 15.90 } ] },
+    { "category": "CÓCTELES", "name": "Relax", "description": "Ron + vodka + tequila + sabor a elegir", "price": 25.90 },
+    { "category": "CÓCTELES", "name": "Shot de pisco", "price": 10.90 },
+    { "category": "CÓCTELES", "name": "Algarrobina", "price": 15.90 },
+    { "category": "CÓCTELES", "name": "Machu Picchu", "price": 16.90 },
+    { "category": "CÓCTELES", "name": "Cuba libre", "price": 15.90 },
+    { "category": "CÓCTELES", "name": "Piña colada", "price": 17.90 },
+    { "category": "CÓCTELES", "name": "Johnnie Ginger", "description": "Vaso", "price": 21.90 },
+    { "category": "CÓCTELES", "name": "Whisky JW Etiqueta Roja (vaso)", "price": 21.90 },
+
+    { "category": "VINOS", "name": "Sangría", "variants": [ { "name": "½ L", "price": 17.90 }, { "name": "1 L", "price": 35.90 } ] },
+    { "category": "VINOS", "name": "Sangría borracha (1 L)", "description": "La clásica + 2 oz de tequila", "price": 42.90 },
+    { "category": "VINOS", "name": "Vino tinto (copa)", "price": 8.90 },
+
+    { "category": "BOTELLAS", "name": "Vino Rosé", "price": 37.90 },
+    { "category": "BOTELLAS", "name": "Vino Borgoña", "price": 37.90 },
+    { "category": "BOTELLAS", "name": "Vino Gran Tinto", "price": 37.90 },
+    { "category": "BOTELLAS", "name": "Pisco Tabernero botija", "price": 108.90 },
+    { "category": "BOTELLAS", "name": "Ron Cartavio", "price": 97.90 },
+    { "category": "BOTELLAS", "name": "Ron Appleton", "price": 119.90 },
+    { "category": "BOTELLAS", "name": "Vodka Smirnoff", "price": 100.90 },
+    { "category": "BOTELLAS", "name": "Tequila Cuervo", "price": 172.90 },
+    { "category": "BOTELLAS", "name": "JW Etiqueta Roja (botella)", "price": 165.90 },
+
+    { "category": "PROMOCIONES", "name": "Pisco Tabernero + ginger", "price": 122.90 },
+    { "category": "PROMOCIONES", "name": "Ron Cartavio (botella) + 2 Coca-Cola", "price": 97.90 },
+    { "category": "PROMOCIONES", "name": "Vodka (botella) + jugo de naranja", "price": 110.00 },
+    { "category": "PROMOCIONES", "name": "Whisky JW Roja (botella) + guaraná", "price": 182.90 }
+  ]
+}
