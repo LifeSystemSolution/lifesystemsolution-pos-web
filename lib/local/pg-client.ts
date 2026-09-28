@@ -1,14 +1,14 @@
 /**
  * lib/local/pg-client.ts
  * ---------------------------------------------------------------------------
- * Cliente de PostgreSQL (Supabase). SOLO se importa desde código de servidor
+ * Cliente de PostgreSQL (Neon; antes Supabase). SOLO se importa desde código de servidor
  * (Route Handlers en app/api/**), nunca desde componentes "use client" ni
  * desde el shim del navegador — "pg" es un módulo de Node.
  *
  * Adaptado de lifesystem-pos-desktop/lib/local/pg-client.ts: ahí conectaba a
- * un Postgres local con host/puerto sueltos; acá conecta a Supabase con una
- * sola connection string (el modo "Transaction pooler", puerto 6543 — ver
- * docs/SQL_MIGRATION_PLAN.md). hashPassword/verifyPassword viven en
+ * un Postgres local con host/puerto sueltos; acá conecta con una sola
+ * connection string al pooler del proveedor (Neon: el host con "-pooler";
+ * Supabase: "Transaction pooler", puerto 6543). hashPassword/verifyPassword viven en
  * lib/local/auth.ts, no acá.
  * ---------------------------------------------------------------------------
  */
@@ -19,11 +19,12 @@ declare global {
   var __lssPgPool: Pool | undefined
 }
 
-// En Vercel cada instancia de la función puede crear su propio pool. Un pool
-// grande por instancia agota rápidamente las conexiones de Supabase cuando
-// hay varios usuarios o despliegues preview a la vez. PgBouncer ya multiplexa
-// las conexiones, por lo que dos por instancia son suficientes.
-const POOL_SIZE = 2
+// En Vercel cada instancia de la función puede crear su propio pool, y con
+// Fluid compute una misma instancia atiende varios requests a la vez: con 2
+// conexiones los requests concurrentes hacían cola. DATABASE_URL apunta al
+// pooler (PgBouncer, modo transaction — en Neon, el host con "-pooler"), que
+// acepta miles de clientes, así que 5 por instancia es seguro.
+const POOL_SIZE = 5
 
 export function getPool(): Pool {
   if (!global.__lssPgPool) {
@@ -33,8 +34,8 @@ export function getPool(): Pool {
     }
     const pool = new Pool({
       connectionString,
-      ssl: { rejectUnauthorized: false }, // Supabase pooler exige TLS
-      // El pooler de Supabase (PgBouncer, modo transaction) ya reparte
+      ssl: { rejectUnauthorized: false }, // Neon/Supabase exigen TLS
+      // El pooler (PgBouncer, modo transaction) ya reparte
       // conexiones entre invocaciones serverless — cada instancia de esta
       // función solo necesita un puñado propias, no cientos.
       max: POOL_SIZE,
@@ -60,8 +61,13 @@ export function getPool(): Pool {
  * secas para "ahorrar" el BEGIN/COMMIT.
  *
  * Resolver la empresa y setear la config van en UNA sola consulta (en vez de
- * dos) para ahorrar un viaje de red — con Supabase en otra región, cada
- * round-trip de más se nota.
+ * dos) para ahorrar un viaje de red.
+ *
+ * En esa misma consulta se cambia al rol `pos_app` (también local a la
+ * transacción): el rol de DATABASE_URL tiene BYPASSRLS y con él la política
+ * RLS no se aplicaba. pos_app solo tiene permisos sobre `documents` — dentro
+ * de `fn` no se puede tocar ninguna otra tabla. Ver
+ * db/migrations/005_app_role_rls.sql.
  *
  * SIEMPRE usar esto para tocar `documents` — nunca `pool.query` directo con
  * un `company_id` armado a mano en el WHERE (ese es justo el tipo de olvido
@@ -108,7 +114,8 @@ export async function withCompanyScope<T>(
               a.active AS account_active,
               a.is_platform_owner,
               c.active AS company_active,
-              set_config('app.company_id', cm.company_id, true)
+              set_config('app.company_id', cm.company_id, true),
+              set_config('role', 'pos_app', true)
        FROM company_members cm
        JOIN auth_accounts a ON a.id = cm.auth_account_id
        JOIN companies c ON c.id = cm.company_id

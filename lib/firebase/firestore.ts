@@ -1115,10 +1115,11 @@ export function subscribeToKitchenOrders(
   callback: (orders: Order[]) => void,
   showOnlyUnsent: boolean = true  // Only show items never sent to kitchen
 ): () => void {
-  // Subscribe to all orders for this store and filter client-side
+  // Solo pedidos sin pagar (se filtran en SQL); el filtro por status/items sigue en el cliente
   const q = query(
     collection(db, collections.orders),
-    where("storeId", "==", storeId)
+    where("storeId", "==", storeId),
+    where("paymentStatus", "==", "pending")
   )
   return onSnapshot(q, (snapshot) => {
     const orders = snapshot.docs

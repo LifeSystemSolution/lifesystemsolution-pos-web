@@ -130,6 +130,20 @@ CREATE POLICY documents_company_isolation ON documents
     OR current_setting('app.is_platform_owner', true) = 'true'
   );
 
+-- Rol sin BYPASSRLS para las transacciones de empresa. El rol de conexión
+-- (neondb_owner / postgres) tiene BYPASSRLS y se salta la política de arriba
+-- aunque haya FORCE; withCompanyScope() cambia a pos_app dentro de cada
+-- transacción. Ver db/migrations/005_app_role_rls.sql.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pos_app') THEN
+    CREATE ROLE pos_app NOLOGIN NOBYPASSRLS;
+  END IF;
+END $$;
+GRANT USAGE ON SCHEMA public TO pos_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON documents TO pos_app;
+GRANT pos_app TO CURRENT_USER;
+
 -- companies: solo el backend con privilegios de servidor la toca (alta de
 -- empresas nuevas, panel de ustedes como dueños de la plataforma) — sin RLS
 -- por ahora, no se expone directo al cliente.
@@ -155,5 +169,6 @@ DO $$
 BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE documents;
 EXCEPTION
-  WHEN duplicate_object THEN NULL;
+  -- undefined_object: la publicación no existe (Postgres que no es Supabase, p. ej. Neon)
+  WHEN duplicate_object OR undefined_object THEN NULL;
 END $$;

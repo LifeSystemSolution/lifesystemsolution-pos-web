@@ -19,16 +19,28 @@
  *      escriben su propio local, y crear/borrar tiendas o usuarios es
  *      exclusivo del dueño de la plataforma.
  *
- * El filtrado de where/orderBy/limit se sigue haciendo en JS sobre las filas
- * ya traídas (no se arma SQL dinámico con nombres de campo arbitrarios) —
- * igual que en el desktop.
+ * Filtrado: los `where` que se pueden expresar exacto en SQL (igualdad con
+ * valores primitivos, rangos sobre strings) van a Postgres — ver
+ * lib/local/db-query.ts. Antes se traía la colección ENTERA de la empresa (todas
+ * las tiendas, todo el historial) y se filtraba en JS: era la causa principal
+ * de la lentitud. Los nombres de campo y valores viajan SIEMPRE como
+ * parámetros ($n), nunca concatenados en el SQL. applyQuery() en JS se sigue
+ * aplicando después sobre el resultado, así que la semántica final es la
+ * misma de antes; SQL solo recorta filas que JS igual habría descartado.
+ *
+ * `multi`: varias lecturas en UN request y UNA transacción. Lo usa el
+ * polling de onSnapshot del shim — antes cada suscripción era un request
+ * aparte cada 3 s. Cada lectura trae un hash del resultado anterior; si no
+ * cambió, se responde `unchanged` sin mandar los datos otra vez.
  * ---------------------------------------------------------------------------
  */
+import { createHash } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import type { PoolClient } from "pg"
 import { withCompanyScope } from "@/lib/local/pg-client"
+import { runGetDoc, runQuery } from "@/lib/local/db-query"
 import { verifySessionToken } from "@/lib/local/auth"
-import { checkWrites, rowVisible, type WriteOp } from "@/lib/local/db-access-policy"
+import { checkWrites, type WriteOp } from "@/lib/local/db-access-policy"
 
 export const runtime = "nodejs"
 
@@ -36,49 +48,8 @@ function genId(prefix = "id") {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`
 }
 
-function matchWhere(data: any, c: { field: string; op: string; value: any }): boolean {
-  const v = data[c.field]
-  switch (c.op) {
-    case "==":
-      return v === c.value
-    case "!=":
-      return v !== c.value
-    case ">":
-      return v > c.value
-    case ">=":
-      return v >= c.value
-    case "<":
-      return v < c.value
-    case "<=":
-      return v <= c.value
-    case "in":
-      return Array.isArray(c.value) && c.value.includes(v)
-    case "not-in":
-      return Array.isArray(c.value) && !c.value.includes(v)
-    case "array-contains":
-      return Array.isArray(v) && v.includes(c.value)
-    case "array-contains-any":
-      return Array.isArray(v) && Array.isArray(c.value) && c.value.some((x) => v.includes(x))
-    default:
-      return true
-  }
-}
-
-function applyQuery(rows: { id: string; data: any }[], body: any) {
-  let items = rows
-  const where: Array<{ field: string; op: string; value: any }> = body.where || []
-  for (const c of where) items = items.filter((r) => matchWhere(r.data, c))
-  const orderBy = body.orderBy as { field: string; direction: "asc" | "desc" } | undefined
-  if (orderBy) {
-    items = items.slice().sort((a, b) => {
-      const av = a.data[orderBy.field]
-      const bv = b.data[orderBy.field]
-      const cmp = av > bv ? 1 : av < bv ? -1 : 0
-      return orderBy.direction === "desc" ? -cmp : cmp
-    })
-  }
-  if (typeof body.limit === "number") items = items.slice(0, body.limit)
-  return items
+function hashOf(value: unknown) {
+  return createHash("sha1").update(JSON.stringify(value)).digest("base64")
 }
 
 async function writeOne(client: PoolClient, companyId: string, op: WriteOp) {
@@ -139,28 +110,28 @@ export async function POST(req: NextRequest) {
 
       switch (body.op) {
         case "getDoc": {
-          const { rows } = await client.query(
-            `SELECT data, extract(epoch from updated_at) AS v
-             FROM documents WHERE collection = $1 AND id = $2 AND company_id = $3`,
-            [body.collection, body.id, companyId]
-          )
-          const visible = rows.length > 0 && rowVisible(scope, body.collection, body.id, rows[0].data)
-          return NextResponse.json({
-            exists: visible,
-            id: body.id,
-            data: visible ? rows[0].data : null,
-            version: visible ? rows[0].v : null,
-          })
+          return NextResponse.json(await runGetDoc(client, scope, body.collection, body.id))
         }
 
         case "getDocs": {
-          const { rows } = await client.query(
-            `SELECT id, data FROM documents WHERE collection = $1 AND company_id = $2`,
-            [body.collection, companyId]
-          )
-          const visibleRows = rows.filter((r) => rowVisible(scope, body.collection, r.id, r.data))
-          const filtered = applyQuery(visibleRows, body)
-          return NextResponse.json({ docs: filtered.map((r) => ({ id: r.id, data: r.data })) })
+          return NextResponse.json({ docs: await runQuery(client, scope, body) })
+        }
+
+        case "multi": {
+          // Lecturas en secuencia sobre la misma conexión (un PoolClient no
+          // admite queries en paralelo) — igual es un solo viaje HTTP y una
+          // sola transacción, en vez de N requests.
+          const reads: any[] = Array.isArray(body.reads) ? body.reads.slice(0, 50) : []
+          const results = []
+          for (const r of reads) {
+            const result =
+              r.kind === "doc"
+                ? await runGetDoc(client, scope, r.collection, r.id)
+                : { docs: await runQuery(client, scope, r) }
+            const hash = hashOf(result)
+            results.push(hash === r.hash ? { unchanged: true } : { hash, ...result })
+          }
+          return NextResponse.json({ results })
         }
 
         case "setDoc": {

@@ -163,6 +163,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsFirebaseAuthenticated(true)
     setIsPlatformOwner(!!session.isPlatformOwner)
     setAccountStoreId(session.storeId ?? null)
+    // El dueño de la plataforma no pertenece a ninguna empresa (no tiene
+    // locales ni PIN): /api/db le respondería 403. Va directo a /plataforma.
+    if (session.isPlatformOwner) {
+      setIsRestoring(false)
+      return
+    }
     ;(async () => {
      try {
       try {
@@ -241,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsFirebaseAuthenticated(true)
       setIsPlatformOwner(!!json.isPlatformOwner)
       setAccountStoreId(json.storeId ?? null)
+      if (json.isPlatformOwner) return true // sin empresa ni locales: va a /plataforma
 
       try {
         const stores = await getAllStores()

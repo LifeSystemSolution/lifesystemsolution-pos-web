@@ -299,34 +299,130 @@ export async function addDoc(ref: CollectionRef, data: Record<string, any>) {
 // docs/PLATFORM_OWNER.md). Si se retoma el relay, tiene que aplicar
 // lib/local/db-access-policy.ts igual que /api/db.
 // ---------------------------------------------------------------------------
+//
+// Todas las suscripciones activas de la pestaña se agrupan en UN solo
+// request `multi` por ciclo (antes: un request por suscripción cada 3 s —
+// ~6 por usuario solo en pos-context). Además:
+//   - Dos suscripciones a la misma query comparten una sola lectura.
+//   - El servidor devuelve `unchanged` si el hash del resultado no cambió,
+//     así no viajan los mismos datos una y otra vez.
+//   - Con la pestaña oculta se consulta cada 30 s en vez de cada 3 s; al
+//     volver a la pestaña se consulta al tiro.
+// ---------------------------------------------------------------------------
 const POLL_INTERVAL_MS = 3000 // WAN, no LAN — más espaciado que los 2s del desktop
+const HIDDEN_POLL_INTERVAL_MS = 30_000
+const FIRST_READ_DELAY_MS = 30 // junta las suscripciones que se abren en el mismo render
+
+type SnapshotListener = { onNext: (snap: SnapshotLike) => void; onError?: (err: any) => void }
+type PollRead =
+  | { kind: "doc"; collection: string; id: string }
+  | ({ kind: "query" } & ReturnType<typeof queryBody>)
+type PollEntry = {
+  read: PollRead
+  listeners: Set<SnapshotListener>
+  hash?: string
+  last?: { exists?: boolean; data?: any; version?: number | null; docs?: { id: string; data: any }[] }
+}
+
+const pollEntries = new Map<string, PollEntry>()
+let pollTimer: ReturnType<typeof setTimeout> | undefined
+let pollDueAt = Infinity
+let pollInFlight = false
+let pollAgainAfterFlight = false
+let visibilityHooked = false
+
+function snapshotFor(entry: PollEntry): SnapshotLike {
+  const last = entry.last!
+  return entry.read.kind === "doc"
+    ? makeDocSnapshot(entry.read.id, !!last.exists, last.data, last.version ?? null)
+    : makeQuerySnapshot(last.docs || [])
+}
+
+function isPageHidden() {
+  return typeof document !== "undefined" && document.visibilityState === "hidden"
+}
+
+function schedulePoll(delay: number) {
+  const due = Date.now() + delay
+  if (pollTimer && pollDueAt <= due) return
+  if (pollTimer) clearTimeout(pollTimer)
+  pollDueAt = due
+  pollTimer = setTimeout(runPoll, delay)
+}
+
+async function runPoll() {
+  pollTimer = undefined
+  pollDueAt = Infinity
+  if (pollEntries.size === 0) return
+  if (pollInFlight) {
+    pollAgainAfterFlight = true
+    return
+  }
+  pollInFlight = true
+  const batch = Array.from(pollEntries.entries())
+  try {
+    const res = await callApi({
+      op: "multi",
+      reads: batch.map(([, e]) => ({ ...e.read, hash: e.hash })),
+    })
+    batch.forEach(([key, entry], i) => {
+      const r = res.results?.[i]
+      if (!r || r.unchanged || pollEntries.get(key) !== entry) return
+      entry.hash = r.hash
+      entry.last = r
+      for (const l of Array.from(entry.listeners)) {
+        try {
+          l.onNext(snapshotFor(entry)) // snapshot propio por listener: nadie comparte objetos mutables
+        } catch (err) {
+          console.error("[onSnapshot] Error en el callback:", err)
+        }
+      }
+    })
+  } catch (err) {
+    for (const [, entry] of batch) for (const l of Array.from(entry.listeners)) l.onError?.(err)
+  } finally {
+    pollInFlight = false
+    if (pollEntries.size > 0) schedulePoll(pollAgainAfterFlight ? 0 : isPageHidden() ? HIDDEN_POLL_INTERVAL_MS : POLL_INTERVAL_MS)
+    pollAgainAfterFlight = false
+  }
+}
+
+function hookVisibility() {
+  if (visibilityHooked || typeof document === "undefined") return
+  visibilityHooked = true
+  document.addEventListener("visibilitychange", () => {
+    if (!isPageHidden() && pollEntries.size > 0) schedulePoll(0)
+  })
+}
 
 export function onSnapshot(ref: DocRef | CollectionRef | QueryRef, onNext: (snap: SnapshotLike) => void, onError?: (err: any) => void) {
-  let active = true
-  let timer: ReturnType<typeof setTimeout> | undefined
-  let lastSerialized: string | undefined
+  hookVisibility()
+  const read: PollRead =
+    ref.__kind === "doc" ? { kind: "doc", collection: ref.name, id: ref.id } : { kind: "query", ...queryBody(ref) }
+  const key = JSON.stringify(read)
+  let entry = pollEntries.get(key)
+  if (!entry) {
+    entry = { read, listeners: new Set() }
+    pollEntries.set(key, entry)
+  }
+  const listener: SnapshotListener = { onNext, onError }
+  entry.listeners.add(listener)
 
-  const tick = async () => {
-    try {
-      const snap = ref.__kind === "doc" ? await getDoc(ref) : await getDocs(ref)
-      if (!active) return
-      const serialized = ref.__kind === "doc" ? JSON.stringify(snap.data()) : JSON.stringify(snap.docs.map((d) => [d.id, d.data()]))
-      if (serialized !== lastSerialized) {
-        lastSerialized = serialized
-        onNext(snap)
-      }
-    } catch (err) {
-      onError?.(err)
-    } finally {
-      if (active) timer = setTimeout(tick, POLL_INTERVAL_MS)
-    }
+  if (entry.last) {
+    // Otra suscripción ya trajo estos datos: entregarlos sin esperar al próximo ciclo.
+    const e = entry
+    setTimeout(() => {
+      if (e.listeners.has(listener)) listener.onNext(snapshotFor(e))
+    }, 0)
+  } else {
+    schedulePoll(FIRST_READ_DELAY_MS)
   }
 
-  void tick()
-
   return () => {
-    active = false
-    if (timer) clearTimeout(timer)
+    const e = pollEntries.get(key)
+    if (!e) return
+    e.listeners.delete(listener)
+    if (e.listeners.size === 0) pollEntries.delete(key)
   }
 }
 
