@@ -8,8 +8,8 @@ import { Cart } from "./cart"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
-import { generateKitchenTicket } from "@/lib/print/receipt-templates"
-import { generatePrintHTML } from "@/lib/print/thermal-printer"
+import { renderKitchenHTML, printHTML } from "@/lib/print/ticket-render"
+import { useTicketConfig } from "@/lib/hooks/use-ticket-config"
 
 interface OrderModalProps {
   table?: Table
@@ -19,6 +19,7 @@ interface OrderModalProps {
 export function OrderModal({ table, onClose }: OrderModalProps) {
   const { addToCart, createOrder, orders, cart } = usePOS()
   const { currentStore, user } = useAuth()
+  const ticketConfig = useTicketConfig()
   const [isSending, setIsSending] = useState(false)
   // React state updates are asynchronous; this ref closes the tiny window in
   // which two fast taps could start two order transactions.
@@ -72,9 +73,7 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
           cancelled: false,
         }
         if (printWindow) {
-          printWindow.document.write(generatePrintHTML(generateKitchenTicket(kitchenOrder, currentStore || undefined)))
-          printWindow.document.close()
-          printWindow.print()
+          printHTML(renderKitchenHTML(kitchenOrder, currentStore || undefined, ticketConfig), printWindow)
         }
         onClose()
       } else {

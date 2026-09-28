@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS companies (
   -- Ver docs/PLATFORM_OWNER.md: todavía no está conectada a
   -- app/api/facturacion/route.ts, que sigue usando env vars globales.
   sunat_settings  JSONB,
+  -- Formato de impresión (recibo/comanda) — TicketConfig en
+  -- lib/print/ticket-config.ts. NULL = valores por defecto.
+  ticket_settings JSONB,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

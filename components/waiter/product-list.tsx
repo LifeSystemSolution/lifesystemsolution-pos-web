@@ -1,9 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { usePOS } from "@/contexts/pos-context"
+import { useAuth } from "@/contexts/auth-context"
 import type { Product, ProductVariant, PizzaMassType } from "@/lib/firebase/firestore"
-import { PIZZA_MASS_TYPES, PIZZA_SIZE_LABELS, PIZZA_INVENTORY_CODES } from "@/lib/firebase/firestore"
+import {
+  PIZZA_MASS_TYPES,
+  PIZZA_SIZE_LABELS,
+  PIZZA_INVENTORY_CODES,
+  getInventoryItemId,
+  subscribeToStoreInventory,
+} from "@/lib/firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -15,12 +22,16 @@ import {
 import { cn } from "@/lib/utils"
 import { Search, Plus, ChevronDown, ChevronUp, Pizza } from "lucide-react"
 
+// Umbral para avisar "quedan pocas" (en ámbar) antes de que se agote.
+const LOW_STOCK = 3
+
 interface ProductListProps {
   onAddProduct: (product: Product, variant?: ProductVariant, pizzaOptions?: { massType: PizzaMassType; flavor?: string; price: number }) => void
 }
 
 export function ProductList({ onAddProduct }: ProductListProps) {
-  const { products } = usePOS()
+  const { products, cart } = usePOS()
+  const { currentStoreId } = useAuth()
   const [search, setSearch] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null)
@@ -28,6 +39,61 @@ export function ProductList({ onAddProduct }: ProductListProps) {
   // Pizza size selector modal state
   const [showPizzaSizeModal, setShowPizzaSizeModal] = useState(false)
   const [selectedPizzaFlavor, setSelectedPizzaFlavor] = useState<Product | null>(null)
+
+  // Stock en vivo del local. null = todavía no cargó (no se marca nada como
+  // agotado mientras tanto). Crear un pedido sin stock falla en el servidor
+  // ("Stock insuficiente"), así que acá se avisa y se bloquea antes.
+  const [stock, setStock] = useState<Map<string, number> | null>(null)
+  useEffect(() => {
+    if (!currentStoreId) return
+    return subscribeToStoreInventory(currentStoreId, (items) => {
+      setStock(new Map(items.map((i) => [i.id!, Number(i.currentStock) || 0])))
+    })
+  }, [currentStoreId])
+
+  // Lo que ya está en el carrito también cuenta: si quedan 2 y hay 2 en el
+  // carrito, no se puede agregar un tercero.
+  const inCart = useMemo(() => {
+    const m = new Map<string, number>()
+    if (!currentStoreId) return m
+    for (const item of cart) {
+      const id = getInventoryItemId(currentStoreId, item)
+      m.set(id, (m.get(id) || 0) + item.quantity)
+    }
+    return m
+  }, [cart, currentStoreId])
+
+  /** Unidades disponibles para agregar; null si aún no se sabe. */
+  const available = (invId: string): number | null => {
+    if (!stock) return null
+    return (stock.get(invId) ?? 0) - (inCart.get(invId) || 0)
+  }
+  const simpleId = (p: Product) => getInventoryItemId(currentStoreId || "", { productId: p.id!, category: p.category })
+  const variantId = (p: Product, v: ProductVariant) =>
+    getInventoryItemId(currentStoreId || "", { productId: p.id!, variantId: v.id, category: p.category })
+  const pizzaId = (massType: PizzaMassType) =>
+    getInventoryItemId(currentStoreId || "", {
+      productId: PIZZA_INVENTORY_CODES[massType],
+      category: "pizzas",
+      productType: "pizza",
+      massType,
+    })
+
+  /** Lo más que se puede agregar del producto (la mejor de sus opciones). */
+  const productAvailable = (p: Product): number | null => {
+    let options: (number | null)[]
+    if (p.category?.toLowerCase() === "pizzas") {
+      options = PIZZA_MASS_TYPES.filter((mt) => (p.priceMap?.[mt] ?? 0) > 0).map((mt) => available(pizzaId(mt)))
+    } else if (p.variants && p.variants.length > 0) {
+      options = p.variants.map((v) => available(variantId(p, v)))
+    } else {
+      options = [available(simpleId(p))]
+    }
+    if (options.length === 0 || options.some((o) => o === null)) return null
+    return Math.max(...(options as number[]))
+  }
+  const isOut = (n: number | null) => n !== null && n <= 0
+  const isLow = (n: number | null) => n !== null && n > 0 && n <= LOW_STOCK
 
   // Get unique categories
   const categories = [...new Set(products.map((p) => p.category))].sort()
@@ -60,6 +126,7 @@ export function ProductList({ onAddProduct }: ProductListProps) {
 
   // Handle product click
   const handleProductClick = (product: Product) => {
+    if (isOut(productAvailable(product))) return
     if (isPizzaProduct(product)) {
       // PIZZA: Open size selector modal
       setSelectedPizzaFlavor(product)
@@ -75,6 +142,7 @@ export function ProductList({ onAddProduct }: ProductListProps) {
 
   // Handle variant selection (for non-pizza products)
   const handleVariantSelect = (product: Product, variant: ProductVariant) => {
+    if (isOut(available(variantId(product, variant)))) return
     onAddProduct(product, variant)
     setExpandedProductId(null)
   }
@@ -82,6 +150,7 @@ export function ProductList({ onAddProduct }: ProductListProps) {
   // Handle pizza size selection
   const handlePizzaSizeSelect = (massType: PizzaMassType) => {
     if (!selectedPizzaFlavor) return
+    if (isOut(available(pizzaId(massType)))) return
     
     // Get price from product's priceMap (sabor-specific pricing)
     const price = selectedPizzaFlavor.priceMap?.[massType]
@@ -154,23 +223,36 @@ export function ProductList({ onAddProduct }: ProductListProps) {
               )}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {categoryProducts.map((product) => (
+              {categoryProducts.map((product) => {
+                const left = productAvailable(product)
+                const out = isOut(left)
+                return (
                 <div key={product.id} className="space-y-1">
                   {/* Product Button */}
                   <button
                     onClick={() => handleProductClick(product)}
+                    aria-disabled={out}
                     className={cn(
                       "w-full text-left p-3 rounded-lg border transition-colors",
                       "bg-card hover:bg-accent border-border",
                       expandedProductId === product.id && "ring-2 ring-primary",
-                      isPizzaProduct(product) && "border-orange-500/30 hover:border-orange-500/50"
+                      isPizzaProduct(product) && "border-orange-500/30 hover:border-orange-500/50",
+                      out && "border-destructive/60 bg-destructive/10 hover:bg-destructive/10 cursor-not-allowed"
                     )}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <p className="font-medium text-sm flex items-center gap-1">
                           {isPizzaProduct(product) && <Pizza className="h-3 w-3 text-orange-500" />}
-                          {product.name}
+                          <span className={cn(out && "text-destructive")}>{product.name}</span>
+                          {out && (
+                            <span className="ml-1 rounded bg-destructive px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                              Sin stock
+                            </span>
+                          )}
+                          {isLow(left) && (
+                            <span className="ml-1 text-[10px] font-semibold text-amber-500">Quedan {left}</span>
+                          )}
                         </p>
                         {/* For non-pizza products, show price info */}
                         {!isPizzaProduct(product) && (
@@ -203,25 +285,40 @@ export function ProductList({ onAddProduct }: ProductListProps) {
                   {/* Variant Expansion (NON-PIZZA only) */}
                   {!isPizzaProduct(product) && expandedProductId === product.id && hasVariants(product) && (
                     <div className="pl-2 space-y-1">
-                      {product.variants!.map((variant) => (
+                      {product.variants!.map((variant) => {
+                        const vLeft = available(variantId(product, variant))
+                        const vOut = isOut(vLeft)
+                        return (
                         <button
                           key={variant.id || variant.name}
                           onClick={() => handleVariantSelect(product, variant)}
-                          className="w-full flex items-center justify-between p-2 rounded-md bg-muted/50 hover:bg-muted transition-colors text-sm"
+                          aria-disabled={vOut}
+                          className={cn(
+                            "w-full flex items-center justify-between p-2 rounded-md bg-muted/50 hover:bg-muted transition-colors text-sm",
+                            vOut && "bg-destructive/10 hover:bg-destructive/10 text-destructive cursor-not-allowed"
+                          )}
                         >
-                          <span>{variant.name}</span>
+                          <span>
+                            {variant.name}
+                            {vOut && <span className="ml-2 text-[10px] font-semibold">Sin stock</span>}
+                            {isLow(vLeft) && (
+                              <span className="ml-2 text-[10px] font-semibold text-amber-500">Quedan {vLeft}</span>
+                            )}
+                          </span>
                           <div className="flex items-center gap-2">
                             <span className="text-muted-foreground">
                               S/ {variant.price.toFixed(2)}
                             </span>
-                            <Plus className="h-4 w-4 text-primary" />
+                            {!vOut && <Plus className="h-4 w-4 text-primary" />}
                           </div>
                         </button>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         ))}
@@ -250,27 +347,37 @@ export function ProductList({ onAddProduct }: ProductListProps) {
                 .filter(({ price }) => price > 0)
                 .map(({ massType, price }) => {
                   const invCode = PIZZA_INVENTORY_CODES[massType]
+                  const sLeft = available(pizzaId(massType))
+                  const sOut = isOut(sLeft)
 
                   return (
                     <button
                       key={massType}
                       onClick={() => handlePizzaSizeSelect(massType)}
+                      aria-disabled={sOut}
                       className={cn(
                         "w-full flex items-center justify-between p-3 rounded-lg border transition-colors",
-                        "bg-card hover:bg-orange-500/10 border-orange-500/30 hover:border-orange-500"
+                        "bg-card hover:bg-orange-500/10 border-orange-500/30 hover:border-orange-500",
+                        sOut && "bg-destructive/10 border-destructive/60 hover:bg-destructive/10 hover:border-destructive/60 cursor-not-allowed"
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <div className="text-left">
-                          <p className="font-medium">{PIZZA_SIZE_LABELS[massType]}</p>
+                          <p className={cn("font-medium", sOut && "text-destructive")}>
+                            {PIZZA_SIZE_LABELS[massType]}
+                            {sOut && <span className="ml-2 text-[10px] font-semibold">Sin masa</span>}
+                            {isLow(sLeft) && (
+                              <span className="ml-2 text-[10px] font-semibold text-amber-500">Quedan {sLeft}</span>
+                            )}
+                          </p>
                           <p className="text-[10px] text-muted-foreground font-mono">{invCode}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-orange-600">
+                        <span className={cn("font-semibold text-orange-600", sOut && "text-destructive")}>
                           S/ {price.toFixed(2)}
                         </span>
-                        <Plus className="h-4 w-4 text-orange-500" />
+                        {!sOut && <Plus className="h-4 w-4 text-orange-500" />}
                       </div>
                     </button>
                   )

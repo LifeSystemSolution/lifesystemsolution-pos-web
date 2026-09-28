@@ -1304,7 +1304,7 @@ function cleanItems(items: OrderItem[]): OrderItem[] {
 // Helper: Get inventory item ID based on item type
 // For pizzas: uses massType-based pattern (storeId_pizzamass_MASSTYPE)
 // For all other categories: uses standard pattern (storeId_productId_variantId)
-function getInventoryItemId(storeId: string, item: OrderItem): string {
+export function getInventoryItemId(storeId: string, item: Pick<OrderItem, "productId" | "variantId" | "category" | "productType" | "massType">): string {
   const isPizza = item.category?.toLowerCase() === 'pizzas' || item.productType === 'pizza'
   
   if (isPizza && item.massType) {

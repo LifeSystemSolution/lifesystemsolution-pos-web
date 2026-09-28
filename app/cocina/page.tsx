@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { cn, toPeruDate } from "@/lib/utils"
 import { Clock, ChefHat, CheckCircle, Printer } from "lucide-react"
-import { generateKitchenTicket } from "@/lib/print/receipt-templates"
-import { generatePrintHTML } from "@/lib/print/thermal-printer"
+import { renderKitchenHTML, printHTML } from "@/lib/print/ticket-render"
+import { useTicketConfig } from "@/lib/hooks/use-ticket-config"
 
 // Tiempo estimado de preparación: pasado esto, un pedido "Preparando" pasa
 // solo a "Listo" sin que nadie tenga que tocar la pantalla — ver
@@ -18,6 +18,7 @@ const AUTO_READY_MS = 10 * 60 * 1000
 
 export default function CocinaPage() {
   const { currentStoreId, currentStore, user } = useAuth()
+  const ticketConfig = useTicketConfig()
   const [orders, setOrders] = useState<Order[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -148,14 +149,7 @@ export default function CocinaPage() {
   }, [])
 
   const handlePrintComanda = (order: Order) => {
-    const elements = generateKitchenTicket(order, currentStore || undefined)
-    const html = generatePrintHTML(elements)
-    const printWindow = window.open("", "_blank")
-    if (printWindow) {
-      printWindow.document.write(html)
-      printWindow.document.close()
-      printWindow.print()
-    }
+    printHTML(renderKitchenHTML(order, currentStore || undefined, ticketConfig))
     // Imprimir la comanda ES la señal de "empecé a preparar" — reemplaza el
     // click manual de "Preparar" (ver docs/BUSINESS_RULES.md). Solo aplica
     // al imprimir desde la columna de Pendientes; reimprimir una comanda ya

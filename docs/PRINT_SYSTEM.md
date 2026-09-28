@@ -5,6 +5,24 @@
 > [`lib/print/`](../lib/print/) y [`components/print/`](../components/print/); no
 > depende de Firebase/Supabase — genera HTML/texto en el cliente.
 
+## 0. Formato por empresa (vigente desde 2026-09-28)
+
+Lo que se imprime en el POS (recibo de venta en caja, comanda en cocina y al
+enviar desde el mesero) sale de **`lib/print/ticket-render.ts`** con la config
+de la empresa (**`lib/print/ticket-config.ts`**, columna
+`companies.ticket_settings`, migración `006`):
+
+- Papel: térmica 58/80 mm (ticket angosto) o A5/A4/Carta (documento con tabla).
+- Tamaño de letra, cabecera (nombre comercial, RUC, dirección, teléfono,
+  líneas extra), título, secciones visibles y pie.
+- La edita **solo el dueño de la plataforma** en `/plataforma/empresas/[id]`
+  → "Formato de impresión" (vista previa en vivo + impresión de prueba).
+- El POS la lee con `useTicketConfig()` (`GET /api/company/ticket-config`).
+
+Lo descrito abajo (`receipt-templates.ts`, `print-settings.ts` en
+localStorage) es el sistema anterior: sigue en el código para los reportes de
+cierre, pero ya no define el recibo ni la comanda.
+
 ## 1. Núcleo (`lib/print/`)
 
 | Archivo | Responsabilidad |

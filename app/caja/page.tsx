@@ -52,9 +52,8 @@ import { ClosureSalesModal } from "@/components/caja/closure-sales-modal"
 import { CashDistribution } from "@/components/caja/cash-distribution"
 import { RecentMovements } from "@/components/caja/recent-movements"
 import { CashMovementModal } from "@/components/caja/cash-movement-modal"
-import { generateOrderReceipt } from "@/lib/print/receipt-templates"
-import { generatePrintHTML } from "@/lib/print/thermal-printer"
-import { usePrintSettings } from "@/lib/hooks/use-print-settings"
+import { renderReceiptHTML, printHTML } from "@/lib/print/ticket-render"
+import { useTicketConfig } from "@/lib/hooks/use-ticket-config"
 import FacturacionService, { ClienteVarios } from "@/lib/services/facturacion-service"
 import { useDocumentLookup } from "@/lib/hooks/use-document-lookup"
 import type { ClienteLocal } from "@/lib/services/clientes-service"
@@ -72,7 +71,7 @@ export default function CajaPage() {
     isLoading 
   } = usePOS()
   const { currentStoreId, currentStore, user } = useAuth()
-  const { settings: printSettings } = usePrintSettings(currentStoreId || "")
+  const ticketConfig = useTicketConfig()
   const { toast } = useToast()
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -1005,24 +1004,7 @@ export default function CajaPage() {
                 <Button
                   onClick={() => {
                     if (!lastProcessedOrder) return
-                    const receiptElements = generateOrderReceipt(lastProcessedOrder, currentStore || undefined)
-                    const printHtml = generatePrintHTML(receiptElements)
-                    
-                    if (printSettings?.useThermalPrinter) {
-                      const printWindow = window.open("", "_blank")
-                      if (printWindow) {
-                        printWindow.document.write(printHtml)
-                        printWindow.document.close()
-                        printWindow.print()
-                      }
-                    } else {
-                      const printWindow = window.open("", "_blank")
-                      if (printWindow) {
-                        printWindow.document.write(printHtml)
-                        printWindow.document.close()
-                        printWindow.print()
-                      }
-                    }
+                    printHTML(renderReceiptHTML(lastProcessedOrder, currentStore || undefined, ticketConfig))
                   }}
                   variant="outline"
                   className="w-full"
@@ -1473,15 +1455,8 @@ export default function CajaPage() {
             <Button 
               className="flex-1 h-10 gap-2" 
               onClick={() => {
-                if (lastProcessedOrder && printSettings) {
-                  const receiptElements = generateOrderReceipt(lastProcessedOrder, currentStore || undefined)
-                  const html = generatePrintHTML(receiptElements, currentStore?.name, currentStore?.code)
-                  const printWindow = window.open("", "_blank")
-                  if (printWindow) {
-                    printWindow.document.write(html)
-                    printWindow.document.close()
-                    setTimeout(() => printWindow.print(), 500)
-                  }
+                if (lastProcessedOrder) {
+                  printHTML(renderReceiptHTML(lastProcessedOrder, currentStore || undefined, ticketConfig))
                 } else {
                   window.print()
                 }

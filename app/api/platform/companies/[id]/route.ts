@@ -5,7 +5,7 @@
  *      de acceso (de empresa y de local), tiendas, usuarios operativos (con
  *      su PIN: el dueño de la plataforma controla todo) y config SUNAT. Todo
  *      en un solo request para no encadenar varios round-trips en la UI.
- * PATCH: nombre / plan / activa / config SUNAT.
+ * PATCH: nombre / plan / activa / config SUNAT / formato de impresión.
  * DELETE: elimina la empresa y TODO lo suyo (datos, cuentas de acceso).
  *      Exige `?confirm=<nombre exacto>` como segunda barrera. La cuenta del
  *      dueño de la plataforma nunca se borra, solo se le quita la membresía.
@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPool, withPlatformOwnerScope } from "@/lib/local/pg-client"
 import { runOwnerRoute, HttpError } from "@/lib/local/platform-auth"
+import { normalizeTicketConfig } from "@/lib/print/ticket-config"
 
 export const runtime = "nodejs"
 
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
     const { id } = await params
 
     const { rows: companyRows } = await getPool().query(
-      `SELECT id, name, plan, active, sunat_settings, created_at FROM companies WHERE id = $1`,
+      `SELECT id, name, plan, active, sunat_settings, ticket_settings, created_at FROM companies WHERE id = $1`,
       [id]
     )
     const company = companyRows[0]
@@ -52,7 +53,11 @@ export async function GET(req: NextRequest, { params }: Ctx) {
     })
 
     return NextResponse.json({
-      company: { ...company, sunatConfigured: !!company.sunat_settings?.configured },
+      company: {
+        ...company,
+        sunatConfigured: !!company.sunat_settings?.configured,
+        ticket_settings: normalizeTicketConfig(company.ticket_settings),
+      },
       members: members.map((m) => ({
         id: m.id,
         email: m.email,
@@ -83,7 +88,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   return runOwnerRoute(req, "companies/[id] PATCH", async () => {
     const { id } = await params
-    const { name, plan, active, sunatSettings } = await req.json()
+    const { name, plan, active, sunatSettings, ticketSettings } = await req.json()
 
     const sets: string[] = []
     const values: any[] = []
@@ -103,6 +108,11 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (sunatSettings !== undefined) {
       values.push(JSON.stringify(sunatSettings))
       sets.push(`sunat_settings = $${values.length}::jsonb`)
+    }
+    if (ticketSettings !== undefined) {
+      // Se guarda normalizado: solo claves conocidas, tipos válidos, textos acotados.
+      values.push(JSON.stringify(normalizeTicketConfig(ticketSettings)))
+      sets.push(`ticket_settings = $${values.length}::jsonb`)
     }
     if (sets.length === 0) throw new HttpError(400, "Nada que actualizar")
 

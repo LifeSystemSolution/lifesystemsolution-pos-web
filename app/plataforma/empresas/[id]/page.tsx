@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { platformFetch } from "@/lib/local/platform-client"
 import { ConfirmDeleteDialog } from "@/components/platform/confirm-delete-dialog"
+import { TicketSettingsCard } from "@/components/platform/ticket-settings-card"
+import type { TicketConfig } from "@/lib/print/ticket-config"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -39,6 +41,7 @@ interface CompanyDetail {
   active: boolean
   sunatConfigured: boolean
   sunat_settings: { baseUrl?: string; apiKey?: string; apiSecret?: string; configured?: boolean } | null
+  ticket_settings: TicketConfig
   created_at: string
 }
 interface Member {
@@ -621,6 +624,15 @@ export default function PlataformaEmpresaDetailPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Formato de impresión */}
+      <TicketSettingsCard
+        companyId={company.id}
+        initial={company.ticket_settings}
+        sampleStoreName={stores[0]?.name}
+        onSaved={() => void load()}
+        onError={(err) => fail(err, "Error guardando el formato de impresión")}
+      />
 
       {/* Diálogos */}
       <AccountDialog
