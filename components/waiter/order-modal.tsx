@@ -1,12 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { usePOS } from "@/contexts/pos-context"
 import type { Table, Product, ProductVariant, PizzaMassType } from "@/lib/firebase/firestore"
 import { ProductList } from "./product-list"
 import { Cart } from "./cart"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { generateKitchenTicket } from "@/lib/print/receipt-templates"
+import { generatePrintHTML } from "@/lib/print/thermal-printer"
 
 interface OrderModalProps {
   table?: Table
@@ -15,7 +18,11 @@ interface OrderModalProps {
 
 export function OrderModal({ table, onClose }: OrderModalProps) {
   const { addToCart, createOrder, orders, cart } = usePOS()
+  const { currentStore, user } = useAuth()
   const [isSending, setIsSending] = useState(false)
+  // React state updates are asynchronous; this ref closes the tiny window in
+  // which two fast taps could start two order transactions.
+  const sendingRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const isTakeout = !table
 
@@ -29,26 +36,57 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
   }
 
   const handleSendOrder = async () => {
+    if (sendingRef.current) return
+    sendingRef.current = true
     setIsSending(true)
     setError(null)
     
     if (!cart || cart.length === 0) {
       setError("El carrito está vacío. Agrega productos antes de enviar el pedido.")
       setIsSending(false)
+      sendingRef.current = false
       return
     }
+
+    // Open while this is still the user's click. Browsers block popups opened
+    // after an awaited request, which would make automatic kitchen printing
+    // unreliable. It is closed again if the order cannot be created.
+    const printWindow = window.open("", "_blank")
 
     try {
       const orderId = await createOrder(isTakeout ? "takeout" : "dine_in")
       if (orderId) {
+        const kitchenOrder = {
+          id: orderId,
+          storeId: currentStore?.id || "",
+          orderType: isTakeout ? "takeout" as const : "dine_in" as const,
+          tableId: table?.id,
+          tableNumber: table?.number,
+          items: cart,
+          total: cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
+          status: "open" as const,
+          paymentStatus: "pending" as const,
+          createdAt: new Date() as any,
+          userId: user?.id,
+          userName: user?.name,
+          cancelled: false,
+        }
+        if (printWindow) {
+          printWindow.document.write(generatePrintHTML(generateKitchenTicket(kitchenOrder, currentStore || undefined)))
+          printWindow.document.close()
+          printWindow.print()
+        }
         onClose()
       } else {
+        printWindow?.close()
         setError("No se pudo crear el pedido. Verifica que hay productos en el carrito.")
       }
     } catch (err: any) {
+      printWindow?.close()
       setError(err?.message || "Error al crear el pedido")
     } finally {
       setIsSending(false)
+      sendingRef.current = false
     }
   }
 

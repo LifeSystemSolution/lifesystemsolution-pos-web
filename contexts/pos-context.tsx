@@ -135,11 +135,6 @@ export function POSProvider({ children }: { children: ReactNode }) {
     void initializePizzaInventory(currentStoreId)
 
     // Subscribe to ready orders for waiter display
-    const unsubReadyOrders = subscribeToOrders(currentStoreId, (orders) => {
-      const ready = orders.filter((o) => o.status === "ready")
-      setReadyOrders(ready)
-    })
-
     // Subscribe to the open cash register for real-time updates
     const unsubCashRegister = subscribeToOpenCashRegister(currentStoreId, setCashRegister)
 
@@ -166,11 +161,16 @@ export function POSProvider({ children }: { children: ReactNode }) {
       unsubOrders()
       unsubTables()
       unsubProducts()
-      unsubReadyOrders()
       unsubCashRegister()
       unsubOpBalance()
     }
   }, [currentStoreId])
+
+  // Reuse the main orders subscription instead of opening a second identical
+  // polling listener just for the waiter badge.
+  useEffect(() => {
+    setReadyOrders(orders.filter((order) => order.status === "ready"))
+  }, [orders])
 
   // Subscribe to paid orders when cash register is open
   useEffect(() => {
@@ -456,7 +456,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
       return orderId
     } catch (error) {
       console.error("Error creating order:", error)
-      return null
+      throw error
     }
   }, [currentStoreId, selectedTable, cart, user, getCartTotal, clearCart, clearSelectedTable])
 
@@ -484,6 +484,10 @@ export function POSProvider({ children }: { children: ReactNode }) {
 
       if (order.orderType !== "takeout" && !order.tableId) {
         throw new Error("El pedido no tiene mesa asociada")
+      }
+
+      if (order.status !== "delivered") {
+        throw new Error("El pedido debe marcarse como entregado antes de cobrarlo")
       }
 
       // Use transaction to process payment (links to cash register session)

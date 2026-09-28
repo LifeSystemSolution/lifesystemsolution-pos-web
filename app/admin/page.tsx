@@ -12,7 +12,8 @@ import {
   addDocument,
   updateDocument,
   deleteDocument,
-  hardDeleteDocument,
+  deleteProductWithInventory,
+  removeProductInventory,
   collections,
   initializeStoreData,
   subscribeToAllTables,
@@ -242,6 +243,15 @@ export default function AdminPage() {
     }
 
     try {
+      const normalizedName = productForm.name.trim().toLocaleLowerCase()
+      const duplicate = products.find((product) =>
+        product.id !== editingProduct?.id &&
+        product.name.trim().toLocaleLowerCase() === normalizedName
+      )
+      if (duplicate) {
+        setProductError("Ya existe un producto con ese nombre en este local.")
+        return
+      }
       // Build clean product data object - NO undefined values allowed in Firestore
       const productData: Record<string, unknown> = {
         name: productForm.name.trim(),
@@ -345,10 +355,12 @@ export default function AdminPage() {
     console.log("Desactivando producto:", productId)
     
     try {
+      const product = products.find((item) => item.id === productId)
+      if (!product) throw new Error("Producto no encontrado")
+      await removeProductInventory(product)
       await updateDocument(collections.products, productId, {
         active: false,
         available: false,
-        updatedAt: new Date(),
       })
       
       console.log("Producto desactivado correctamente")
@@ -367,7 +379,9 @@ export default function AdminPage() {
     console.log("Eliminando producto permanentemente:", productId)
     
     try {
-      await hardDeleteDocument(collections.products, productId)
+      const product = products.find((item) => item.id === productId)
+      if (!product) throw new Error("Producto no encontrado")
+      await deleteProductWithInventory(product)
       
       console.log("Producto eliminado permanentemente")
       
