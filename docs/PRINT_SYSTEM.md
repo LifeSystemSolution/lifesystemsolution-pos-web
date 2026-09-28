@@ -13,8 +13,15 @@ de la empresa (**`lib/print/ticket-config.ts`**, columna
 `companies.ticket_settings`, migración `006`):
 
 - Papel: térmica 58/80 mm (ticket angosto) o A5/A4/Carta (documento con tabla).
-- Tamaño de letra, cabecera (nombre comercial, RUC, dirección, teléfono,
-  líneas extra), título, secciones visibles y pie.
+- Tamaño y tipo de letra, cabecera (logo, nombre comercial, RUC, dirección,
+  teléfono, líneas extra), título, secciones visibles, importe en letras
+  (`lib/print/amount-in-words.ts`), pie y código QR con texto propio
+  ("Conoce más sobre mí"), generado en SVG con `qrcode-generator`.
+- En térmica el contenido usa el ancho IMPRIMIBLE (58 mm → 48 mm, 80 mm →
+  72 mm), no el del rollo: el cabezal no llega a los bordes.
+- El logo se reduce (máx. 576 px), se aplana sobre blanco y opcionalmente se
+  pasa a escala de grises en el navegador; se guarda como data URL dentro de
+  `ticket_settings` (el servidor solo acepta png/jpeg/webp y hasta ~350 KB).
 - La edita **solo el dueño de la plataforma** en `/plataforma/empresas/[id]`
   → "Formato de impresión" (vista previa en vivo + impresión de prueba).
 - El POS la lee con `useTicketConfig()` (`GET /api/company/ticket-config`).

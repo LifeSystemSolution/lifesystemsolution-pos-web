@@ -2,7 +2,7 @@
 /**
  * components/platform/ticket-settings-card.tsx
  * ---------------------------------------------------------------------------
- * Formato de impresión de UNA empresa (recibo de venta + comanda de cocina),
+ * Formato de impresión de UNA empresa (nota de venta + comanda de cocina),
  * en /plataforma/empresas/[id]. La vista previa usa exactamente el mismo
  * generador que imprime el POS (lib/print/ticket-render.ts), con un pedido de
  * ejemplo — lo que se ve acá es lo que sale en la impresora.
@@ -18,15 +18,22 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Printer, Save, RotateCcw, Receipt } from "lucide-react"
+import { Printer, Save, RotateCcw, Receipt, ImagePlus, Trash2, QrCode } from "lucide-react"
 import {
   DEFAULT_TICKET_CONFIG,
+  FONT_FAMILIES,
+  FONT_FAMILY_LABELS,
   FONT_SCALES,
   FONT_SCALE_LABELS,
+  LOGO_MAX_CHARS,
+  LOGO_SIZES,
+  LOGO_SIZE_LABELS,
   PAPER_LABELS,
   PAPER_SIZES,
   PAPER_SPECS,
+  type FontFamily,
   type FontScale,
+  type LogoSize,
   type PaperSize,
   type TicketConfig,
 } from "@/lib/print/ticket-config"
@@ -35,6 +42,9 @@ import { printHTML, renderKitchenHTML, renderReceiptHTML, sampleOrder } from "@/
 type Tab = "business" | "receipt" | "kitchen"
 const PREVIEW_WIDTH = 340 // px disponibles para la hoja en la vista previa
 const MM_TO_PX = 3.78
+/** 576 px = ancho del cabezal de una térmica de 80 mm a 203 dpi: más resolución no se nota. */
+const LOGO_MAX_WIDTH = 576
+const LOGO_MAX_HEIGHT = 320
 
 interface Props {
   companyId: string
@@ -44,11 +54,64 @@ interface Props {
   onError?: (err: unknown) => void
 }
 
+/**
+ * Reduce el logo, lo aplana sobre fondo blanco (un PNG transparente puede
+ * salir negro en térmica) y opcionalmente lo pasa a escala de grises. Todo en
+ * el navegador: al servidor solo llega el data URL ya procesado.
+ */
+async function processLogo(file: File, grayscale: boolean): Promise<string> {
+  if (!/^image\/(png|jpeg|webp|gif|svg\+xml)$/.test(file.type)) {
+    throw new Error("Formato no soportado. Usa PNG, JPG, WEBP, GIF o SVG.")
+  }
+  if (file.size > 8 * 1024 * 1024) throw new Error("La imagen pesa más de 8 MB.")
+  const url = URL.createObjectURL(file)
+  try {
+    // onload y no img.decode(): decode() no se resuelve mientras la pestaña está oculta.
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error("No se pudo leer la imagen."))
+      el.src = url
+    })
+    const w0 = img.naturalWidth || 400
+    const h0 = img.naturalHeight || 200
+    const scale = Math.min(1, LOGO_MAX_WIDTH / w0, LOGO_MAX_HEIGHT / h0)
+    const w = Math.max(1, Math.round(w0 * scale))
+    const h = Math.max(1, Math.round(h0 * scale))
+    const canvas = document.createElement("canvas")
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext("2d")!
+    ctx.fillStyle = "#fff"
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
+    if (grayscale) {
+      const data = ctx.getImageData(0, 0, w, h)
+      const px = data.data
+      for (let i = 0; i < px.length; i += 4) {
+        const l = Math.round(0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2])
+        px[i] = px[i + 1] = px[i + 2] = l
+      }
+      ctx.putImageData(data, 0, 0)
+    }
+    let out = canvas.toDataURL("image/png")
+    if (out.length > LOGO_MAX_CHARS) out = canvas.toDataURL("image/jpeg", 0.85)
+    if (out.length > LOGO_MAX_CHARS) out = canvas.toDataURL("image/jpeg", 0.6)
+    if (out.length > LOGO_MAX_CHARS) throw new Error("El logo es demasiado complejo; prueba con una versión más simple.")
+    return out
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
 export function TicketSettingsCard({ companyId, initial, sampleStoreName, onSaved, onError }: Props) {
   const [draft, setDraft] = useState<TicketConfig>(initial)
   const [tab, setTab] = useState<Tab>("business")
   const [isSaving, setIsSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [logoGray, setLogoGray] = useState(true)
+  const [logoError, setLogoError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => setDraft(initial), [initial])
 
@@ -68,6 +131,18 @@ export function TicketSettingsCard({ companyId, initial, sampleStoreName, onSave
       ? renderKitchenHTML(sampleOrder(), store, draft)
       : renderReceiptHTML(sampleOrder(), store, draft)
   }, [draft, previewKind, sampleStoreName])
+
+  const handleLogo = async (file: File | undefined) => {
+    if (!file) return
+    setLogoError(null)
+    try {
+      setBusiness({ logo: await processLogo(file, logoGray) })
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "No se pudo leer la imagen")
+    } finally {
+      if (fileRef.current) fileRef.current.value = ""
+    }
+  }
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -103,11 +178,71 @@ export function TicketSettingsCard({ companyId, initial, sampleStoreName, onSave
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
             <TabsList className="mb-4">
               <TabsTrigger value="business">Negocio</TabsTrigger>
-              <TabsTrigger value="receipt">Recibo de venta</TabsTrigger>
+              <TabsTrigger value="receipt">Nota de venta</TabsTrigger>
               <TabsTrigger value="kitchen">Comanda de cocina</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="business" className="space-y-4">
+            <TabsContent value="business" className="space-y-5">
+              {/* Logo */}
+              <div className="space-y-2">
+                <Label>Logo</Label>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex h-20 w-40 items-center justify-center rounded-md border border-dashed border-border bg-white p-2">
+                    {draft.business.logo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={draft.business.logo} alt="Logo" className="max-h-full max-w-full object-contain" />
+                    ) : (
+                      <span className="text-xs text-neutral-500">Sin logo</span>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                        className="hidden"
+                        onChange={(e) => void handleLogo(e.target.files?.[0])}
+                      />
+                      <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+                        <ImagePlus className="h-4 w-4 mr-1" />
+                        {draft.business.logo ? "Cambiar logo" : "Subir logo"}
+                      </Button>
+                      {draft.business.logo && (
+                        <Button size="sm" variant="ghost" onClick={() => setBusiness({ logo: "" })}>
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Quitar
+                        </Button>
+                      )}
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                      <Switch checked={logoGray} onCheckedChange={setLogoGray} />
+                      Convertir a blanco y negro al subir (recomendado para térmica)
+                    </label>
+                  </div>
+                  <div className="w-40">
+                    <Field label="Tamaño en el ticket">
+                      <Select value={draft.business.logoSize} onValueChange={(v) => setBusiness({ logoSize: v as LogoSize })}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LOGO_SIZES.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {LOGO_SIZE_LABELS[s]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </div>
+                </div>
+                {logoError && <p className="text-xs text-destructive">{logoError}</p>}
+                <p className="text-xs text-muted-foreground">
+                  Mejor resultado: logo sobre fondo blanco, en horizontal y con trazos gruesos.
+                </p>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Nombre comercial" hint="Vacío = nombre del local">
                   <Input value={draft.business.name} maxLength={120} onChange={(e) => setBusiness({ name: e.target.value })} />
@@ -133,22 +268,39 @@ export function TicketSettingsCard({ companyId, initial, sampleStoreName, onSave
               </Field>
             </TabsContent>
 
-            <TabsContent value="receipt" className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <TabsContent value="receipt" className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <PaperSelect value={draft.receipt.paper} onChange={(paper) => setReceipt({ paper })} />
-                <FontSelect value={draft.receipt.fontScale} onChange={(fontScale) => setReceipt({ fontScale })} />
-                <Field label="Título">
+                <Field label="Título del documento">
                   <Input value={draft.receipt.title} maxLength={60} onChange={(e) => setReceipt({ title: e.target.value })} />
                 </Field>
+                <FontSelect value={draft.receipt.fontScale} onChange={(fontScale) => setReceipt({ fontScale })} />
+                <Field label="Tipo de letra">
+                  <Select value={draft.receipt.fontFamily} onValueChange={(v) => setReceipt({ fontFamily: v as FontFamily })}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FONT_FAMILIES.map((f) => (
+                        <SelectItem key={f} value={f}>
+                          {FONT_FAMILY_LABELS[f]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                <Toggle label="Nombre del local" checked={draft.receipt.showStoreName} onChange={(v) => setReceipt({ showStoreName: v })} />
-                <Toggle label="N° de pedido" checked={draft.receipt.showOrderNumber} onChange={(v) => setReceipt({ showOrderNumber: v })} />
-                <Toggle label="Mesa / Para llevar" checked={draft.receipt.showTable} onChange={(v) => setReceipt({ showTable: v })} />
+                <Toggle label="Logo" checked={draft.receipt.showLogo} onChange={(v) => setReceipt({ showLogo: v })} />
+                <Toggle label="N° de nota" checked={draft.receipt.showOrderNumber} onChange={(v) => setReceipt({ showOrderNumber: v })} />
                 <Toggle label="Fecha y hora" checked={draft.receipt.showDateTime} onChange={(v) => setReceipt({ showDateTime: v })} />
+                <Toggle label="Nombre del local" checked={draft.receipt.showStoreName} onChange={(v) => setReceipt({ showStoreName: v })} />
+                <Toggle label="Mesa / Para llevar" checked={draft.receipt.showTable} onChange={(v) => setReceipt({ showTable: v })} />
                 <Toggle label="Quién atendió" checked={draft.receipt.showWaiter} onChange={(v) => setReceipt({ showWaiter: v })} />
                 <Toggle label="Observaciones" checked={draft.receipt.showNotes} onChange={(v) => setReceipt({ showNotes: v })} />
                 <Toggle label="Subtotal" checked={draft.receipt.showSubtotals} onChange={(v) => setReceipt({ showSubtotals: v })} />
+                <Toggle label="Importe en letras (SON: …)" checked={draft.receipt.showAmountInWords} onChange={(v) => setReceipt({ showAmountInWords: v })} />
                 <Toggle label="Forma de pago" checked={draft.receipt.showPaymentMethod} onChange={(v) => setReceipt({ showPaymentMethod: v })} />
                 <Toggle label="Tiempo estimado" checked={draft.receipt.showEstimatedTime} onChange={(v) => setReceipt({ showEstimatedTime: v })} />
               </div>
@@ -161,14 +313,46 @@ export function TicketSettingsCard({ companyId, initial, sampleStoreName, onSave
                   />
                 </Field>
               )}
-              <Field label="Pie del recibo" hint="Una por línea">
+              <Field label="Mensaje final" hint="Una por línea">
                 <Textarea
-                  rows={3}
+                  rows={2}
                   value={draft.receipt.footerText}
                   maxLength={500}
                   onChange={(e) => setReceipt({ footerText: e.target.value })}
                 />
               </Field>
+
+              {/* Código QR */}
+              <div className="rounded-md border border-border p-4 space-y-3">
+                <label className="flex items-center justify-between gap-3 cursor-pointer">
+                  <span className="flex items-center gap-2 text-sm font-medium">
+                    <QrCode className="h-4 w-4" />
+                    Código QR al final de la nota
+                  </span>
+                  <Switch checked={draft.receipt.qrEnabled} onCheckedChange={(v) => setReceipt({ qrEnabled: v })} />
+                </label>
+                {draft.receipt.qrEnabled && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Field label="Texto sobre el QR">
+                        <Input value={draft.receipt.qrTitle} maxLength={60} onChange={(e) => setReceipt({ qrTitle: e.target.value })} />
+                      </Field>
+                      <Field label="Enlace del QR" hint="Web, Instagram, WhatsApp (wa.me/51...), carta digital…">
+                        <Input
+                          value={draft.receipt.qrUrl}
+                          maxLength={300}
+                          placeholder="https://instagram.com/multipizza"
+                          onChange={(e) => setReceipt({ qrUrl: e.target.value })}
+                        />
+                      </Field>
+                    </div>
+                    <Toggle label="Mostrar el enlace debajo del QR" checked={draft.receipt.qrShowUrl} onChange={(v) => setReceipt({ qrShowUrl: v })} />
+                    {!draft.receipt.qrUrl.trim() && (
+                      <p className="text-xs text-amber-500">Sin enlace el QR no se imprime.</p>
+                    )}
+                  </>
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="kitchen" className="space-y-4">
@@ -212,7 +396,7 @@ export function TicketSettingsCard({ companyId, initial, sampleStoreName, onSave
           {/* Vista previa */}
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Vista previa — {previewKind === "kitchen" ? "comanda" : "recibo"} en {PAPER_LABELS[previewPaper]}
+              Vista previa — {previewKind === "kitchen" ? "comanda" : "nota de venta"} en {PAPER_LABELS[previewPaper]}
             </p>
             <PaperPreview html={previewHtml} paper={previewPaper} />
           </div>
@@ -279,12 +463,15 @@ function FontSelect({ value, onChange }: { value: FontScale; onChange: (v: FontS
   )
 }
 
-/** La hoja a escala real dentro de un iframe, achicada para que entre en PREVIEW_WIDTH. */
+/**
+ * El papel a escala real dentro de un iframe, achicado para entrar en
+ * PREVIEW_WIDTH. En térmica se ve el rollo completo y el contenido en el
+ * ancho que realmente imprime el cabezal; en hojas, con su margen.
+ */
 function PaperPreview({ html, paper }: { html: string; paper: PaperSize }) {
   const spec = PAPER_SPECS[paper]
-  const paddingMm = spec.thermal ? 0 : 12 // margen de página de las hojas (en papel lo pone @page)
-  const widthPx = Math.round((spec.widthMm - paddingMm * 2) * MM_TO_PX)
-  const padPx = Math.round(paddingMm * MM_TO_PX)
+  const widthPx = Math.round(spec.printMm * MM_TO_PX)
+  const padPx = Math.round(((spec.widthMm - spec.printMm) / 2) * MM_TO_PX)
   const outerPx = widthPx + padPx * 2
   const scale = Math.min(1, PREVIEW_WIDTH / outerPx)
   const [contentHeight, setContentHeight] = useState(400)
@@ -292,19 +479,28 @@ function PaperPreview({ html, paper }: { html: string; paper: PaperSize }) {
 
   const measure = () => {
     const doc = frameRef.current?.contentDocument
-    if (doc) setContentHeight(Math.max(200, doc.documentElement.scrollHeight))
+    if (!doc) return
+    const update = () => setContentHeight(Math.max(200, doc.documentElement.scrollHeight))
+    update()
+    // El logo puede terminar de cargar después del onLoad del iframe.
+    Array.from(doc.images).forEach((img) => img.addEventListener("load", update))
   }
 
-  const outerHeight = contentHeight + padPx * 2
+  const outerHeight = contentHeight + (spec.thermal ? 0 : padPx * 2)
   return (
     <div
       className="rounded-md border border-border bg-muted/30 p-3 overflow-auto"
-      style={{ width: PREVIEW_WIDTH + 24, maxHeight: 640 }}
+      style={{ width: PREVIEW_WIDTH + 24, maxHeight: 720 }}
     >
       <div style={{ width: outerPx * scale, height: outerHeight * scale }}>
         <div
           className="bg-white shadow-md origin-top-left"
-          style={{ width: outerPx, height: outerHeight, padding: padPx, transform: `scale(${scale})` }}
+          style={{
+            width: outerPx,
+            height: outerHeight,
+            padding: spec.thermal ? `0 ${padPx}px` : padPx,
+            transform: `scale(${scale})`,
+          }}
         >
           <iframe
             ref={frameRef}
