@@ -217,7 +217,12 @@ export async function POST(req: NextRequest) {
     })
 
     if (outcome.status === "no_company") {
-      return forbidden("Este usuario no está asociado a ninguna empresa")
+      // Token válido pero la cuenta ya no pertenece a ninguna empresa (se
+      // borró, o es una sesión de otra base de datos): el shim cierra sesión.
+      return NextResponse.json(
+        { error: "Este usuario no está asociado a ninguna empresa", code: "no_company" },
+        { status: 403 }
+      )
     }
     if (outcome.status === "disabled") {
       const message =

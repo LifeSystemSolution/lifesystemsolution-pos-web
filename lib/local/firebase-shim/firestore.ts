@@ -23,16 +23,18 @@ import { getStoredSession, clearStoredSession } from "@/lib/local/session"
 
 // Si el dueño de la plataforma desactiva una cuenta/empresa mientras hay
 // una sesión abierta, el servidor responde 403 con este código en cada
-// request: se cierra la sesión una sola vez y se vuelve al login.
+// request: se cierra la sesión una sola vez y se vuelve al login. Lo mismo si
+// la cuenta ya no existe (`no_company`: empresa borrada, o sesión guardada de
+// otra base de datos), pero sin el aviso de "cuenta desactivada".
 let disabledRedirectStarted = false
-function handleDisabledSession() {
+function handleDisabledSession(target = "/?disabled=1") {
   if (disabledRedirectStarted || typeof window === "undefined") return
   disabledRedirectStarted = true
   clearStoredSession()
   try {
     localStorage.removeItem("pos_operative_unlock")
   } catch {}
-  window.location.href = "/?disabled=1"
+  window.location.href = target
 }
 
 class ConflictError extends Error {
@@ -61,6 +63,7 @@ async function callApi(body: Record<string, any>) {
     if (res.status === 403 && (err.code === "account_disabled" || err.code === "company_disabled")) {
       handleDisabledSession()
     }
+    if (res.status === 403 && err.code === "no_company") handleDisabledSession("/")
     throw new Error(err.error || err.mensaje || `Error de base de datos (${res.status})`)
   }
   return res.json()
