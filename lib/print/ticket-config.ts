@@ -54,7 +54,14 @@ export const LOGO_SIZE_LABELS: Record<LogoSize, string> = { small: "Pequeño", m
 /** Ancho del logo como % del ancho imprimible (en hojas se limita a 45 mm). */
 export const LOGO_SIZE_PERCENT: Record<LogoSize, number> = { small: 35, medium: 55, large: 80 }
 
-/** El logo se guarda como data URL dentro del JSON (ya reducido y en escala de grises al subirlo). */
+export const QR_MODES = ["link", "image"] as const
+export type QrMode = (typeof QR_MODES)[number]
+export const QR_MODE_LABELS: Record<QrMode, string> = {
+  link: "Generarlo desde un enlace",
+  image: "Subir mi propia imagen de QR",
+}
+
+/** Logo e imagen de QR se guardan como data URL dentro del JSON (ya reducidos al subirlos). */
 export const LOGO_MAX_CHARS = 350_000
 const LOGO_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/
 
@@ -88,8 +95,10 @@ export interface TicketConfig {
     estimatedTimeText: string
     footerText: string // una por línea
     qrEnabled: boolean
+    qrMode: QrMode // link: se genera desde qrUrl; image: se imprime qrImage tal cual
     qrTitle: string
     qrUrl: string // lo que codifica el QR: web, Instagram, WhatsApp, carta digital...
+    qrImage: string // data URL de un QR propio (Yape, carta, etc.) o vacío
     qrShowUrl: boolean
   }
   kitchen: {
@@ -123,8 +132,10 @@ export const DEFAULT_TICKET_CONFIG: TicketConfig = {
     estimatedTimeText: "15 - 20 minutos",
     footerText: "¡Gracias por su compra!",
     qrEnabled: false,
+    qrMode: "link",
     qrTitle: "Conoce más sobre mí",
     qrUrl: "",
+    qrImage: "",
     qrShowUrl: true,
   },
   kitchen: {
@@ -143,7 +154,7 @@ const bool = (v: unknown, fallback: boolean) => (typeof v === "boolean" ? v : fa
 const oneOf = <T extends string>(v: unknown, options: readonly T[], fallback: T): T =>
   options.includes(v as T) ? (v as T) : fallback
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" ? (v as Record<string, unknown>) : {})
-const logo = (v: unknown) => (typeof v === "string" && v.length <= LOGO_MAX_CHARS && LOGO_RE.test(v) ? v : "")
+const image = (v: unknown) => (typeof v === "string" && v.length <= LOGO_MAX_CHARS && LOGO_RE.test(v) ? v : "")
 
 /**
  * Completa con valores por defecto y descarta todo lo que no sea del tipo
@@ -162,7 +173,7 @@ export function normalizeTicketConfig(raw: unknown): TicketConfig {
       address: str(b.address, d.business.address, 200),
       phone: str(b.phone, d.business.phone, 60),
       extraLines: str(b.extraLines, d.business.extraLines, 500),
-      logo: logo(b.logo),
+      logo: image(b.logo),
       logoSize: oneOf(b.logoSize, LOGO_SIZES, d.business.logoSize),
     },
     receipt: {
@@ -184,8 +195,10 @@ export function normalizeTicketConfig(raw: unknown): TicketConfig {
       estimatedTimeText: str(r.estimatedTimeText, d.receipt.estimatedTimeText, 60),
       footerText: str(r.footerText, d.receipt.footerText, 500),
       qrEnabled: bool(r.qrEnabled, d.receipt.qrEnabled),
+      qrMode: oneOf(r.qrMode, QR_MODES, d.receipt.qrMode),
       qrTitle: str(r.qrTitle, d.receipt.qrTitle, 60),
       qrUrl: str(r.qrUrl, d.receipt.qrUrl, 300),
+      qrImage: image(r.qrImage),
       qrShowUrl: bool(r.qrShowUrl, d.receipt.qrShowUrl),
     },
     kitchen: {

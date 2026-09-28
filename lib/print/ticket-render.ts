@@ -60,21 +60,56 @@ function serviceLabel(order: Order) {
     : `Mesa ${String(order.tableNumber).padStart(2, "0")}`
 }
 
-function itemLabel(item: Order["items"][number]) {
-  return `${item.productName}${item.variantName ? ` ${item.variantName}` : ""}`
+/**
+ * Variante a mostrar aparte del nombre. Las pizzas ya traen el tamaño en el
+ * nombre ("A lo Multipizza - Bipersonal"): no se repite.
+ */
+function variantOf(item: Order["items"][number]) {
+  const v = (item.variantName || "").trim()
+  if (!v) return ""
+  return item.productName.toLocaleLowerCase().includes(v.toLocaleLowerCase()) ? "" : v
 }
 
-/** QR como SVG en línea (vectorial: sale nítido en cualquier impresora). */
+function itemLabel(item: Order["items"][number]) {
+  const v = variantOf(item)
+  return `${item.productName}${v ? ` ${v}` : ""}`
+}
+
+/**
+ * QR como SVG en línea (vectorial: sale nítido en cualquier impresora).
+ * El texto se pasa ya convertido a bytes UTF-8 (un carácter por byte): el
+ * build ESM de qrcode-generator —el que usa el navegador— no trae
+ * stringToBytesFuncs["UTF-8"] y su conversión por defecto corta cada
+ * carácter a 8 bits.
+ */
 function qrSvg(text: string): string {
   try {
-    qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"]
+    const utf8 = String.fromCharCode(...new TextEncoder().encode(text))
     const qr = qrcode(0, "M")
-    qr.addData(text, "Byte")
+    qr.addData(utf8, "Byte")
     qr.make()
     return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true })
-  } catch {
-    return "" // texto demasiado largo para un QR: se omite en vez de romper la impresión
+  } catch (err) {
+    console.warn("[ticket] No se pudo generar el QR:", err)
+    return ""
   }
+}
+
+/** Bloque del QR (generado desde el enlace o imagen subida), a `sizeMm` de lado. */
+function qrBlock(r: TicketConfig["receipt"], sizeMm: number): string {
+  if (!r.qrEnabled) return ""
+  const size = `width:${sizeMm}mm;height:${sizeMm}mm`
+  let code = ""
+  if (r.qrMode === "image") {
+    if (r.qrImage) code = `<img src="${esc(r.qrImage)}" alt="" style="${size};object-fit:contain;margin:0 auto;image-rendering:pixelated">`
+  } else if (r.qrUrl.trim()) {
+    const svg = qrSvg(r.qrUrl.trim())
+    if (svg) code = `<div style="${size};margin:0 auto">${svg.replace("<svg ", `<svg style="${size}" `)}</div>`
+  }
+  if (!code) return ""
+  const title = r.qrTitle.trim() ? `<div class="qr-t">${esc(r.qrTitle)}</div>` : ""
+  const url = r.qrMode === "link" && r.qrShowUrl ? `<div class="qr-u">${esc(r.qrUrl.trim())}</div>` : ""
+  return `<div class="qr">${title}${code}${url}</div>`
 }
 
 function documentShell(opts: {
@@ -174,7 +209,6 @@ function thermalReceipt(order: Order, store: StoreLike | undefined, cfg: TicketC
     PAYMENT_LABELS[order.paymentMethod || ""] ||
     (order.paymentMethod ? String(order.paymentMethod).toUpperCase() : "NO ESPECIFICADO")
   const footer = lines(r.footerText)
-  const qr = r.qrEnabled && r.qrUrl.trim() ? qrSvg(r.qrUrl.trim()) : ""
   const qrMm = Math.round(spec.printMm * 0.5) // 36 mm en 80 mm, 24 mm en 58 mm: se escanea bien
 
   const kv: [string, string][] = []
@@ -185,7 +219,7 @@ function thermalReceipt(order: Order, store: StoreLike | undefined, cfg: TicketC
 
   const rows = items
     .map((i) => {
-      const sub = [i.variantName, i.quantity > 1 ? `${money(i.price)} c/u` : ""].filter(Boolean).join(" · ")
+      const sub = [variantOf(i), i.quantity > 1 ? `${money(i.price)} c/u` : ""].filter(Boolean).join(" · ")
       return `<tr><td class="q">${i.quantity}</td><td class="d">${esc(i.productName)}${
         sub ? `<div class="sub">${esc(sub)}</div>` : ""
       }${r.showNotes && i.notes ? `<div class="note">• ${esc(i.notes)}</div>` : ""}</td><td class="a">${amount(
@@ -219,12 +253,7 @@ function thermalReceipt(order: Order, store: StoreLike | undefined, cfg: TicketC
       ? `<div class="eta">Tiempo estimado: <span class="bold">${esc(r.estimatedTimeText)}</span></div>`
       : "",
     footer.length ? `<div class="foot">${footer.map((l) => `<div>${esc(l)}</div>`).join("")}</div>` : "",
-    qr
-      ? `<div class="qr">${r.qrTitle.trim() ? `<div class="qr-t">${esc(r.qrTitle)}</div>` : ""}<div style="width:${qrMm}mm;height:${qrMm}mm;margin:0 auto">${qr.replace(
-          "<svg ",
-          `<svg style="width:${qrMm}mm;height:${qrMm}mm" `
-        )}</div>${r.qrShowUrl ? `<div class="qr-u">${esc(r.qrUrl.trim())}</div>` : ""}</div>`
-      : "",
+    qrBlock(r, qrMm),
     `</div>`,
   ].join("\n")
 
@@ -277,7 +306,6 @@ function pageReceipt(order: Order, store: StoreLike | undefined, cfg: TicketConf
     PAYMENT_LABELS[order.paymentMethod || ""] ||
     (order.paymentMethod ? String(order.paymentMethod).toUpperCase() : "NO ESPECIFICADO")
   const footer = lines(r.footerText)
-  const qr = r.qrEnabled && r.qrUrl.trim() ? qrSvg(r.qrUrl.trim()) : ""
 
   const info: [string, string][] = []
   if (r.showDateTime) info.push(["Fecha", formatReceiptDateTime(order.createdAt)])
@@ -318,12 +346,7 @@ function pageReceipt(order: Order, store: StoreLike | undefined, cfg: TicketConf
       ? `<div class="center" style="margin-top:4mm">Tiempo estimado: ${esc(r.estimatedTimeText)}</div>`
       : "",
     footer.length ? `<div class="footer">${footer.map((l) => `<div>${esc(l)}</div>`).join("")}</div>` : "",
-    qr
-      ? `<div class="qr">${r.qrTitle.trim() ? `<div class="qr-t">${esc(r.qrTitle)}</div>` : ""}${qr.replace(
-          "<svg ",
-          `<svg style="width:32mm;height:32mm" `
-        )}${r.qrShowUrl ? `<div class="qr-u">${esc(r.qrUrl.trim())}</div>` : ""}</div>`
-      : "",
+    qrBlock(r, 32),
   ].join("\n")
 
   return documentShell({

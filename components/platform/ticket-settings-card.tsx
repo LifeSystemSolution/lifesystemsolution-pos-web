@@ -31,10 +31,13 @@ import {
   PAPER_LABELS,
   PAPER_SIZES,
   PAPER_SPECS,
+  QR_MODES,
+  QR_MODE_LABELS,
   type FontFamily,
   type FontScale,
   type LogoSize,
   type PaperSize,
+  type QrMode,
   type TicketConfig,
 } from "@/lib/print/ticket-config"
 import { printHTML, renderKitchenHTML, renderReceiptHTML, sampleOrder } from "@/lib/print/ticket-render"
@@ -54,12 +57,15 @@ interface Props {
   onError?: (err: unknown) => void
 }
 
+type ImageMode = "color" | "gray" | "bw"
+
 /**
- * Reduce el logo, lo aplana sobre fondo blanco (un PNG transparente puede
- * salir negro en térmica) y opcionalmente lo pasa a escala de grises. Todo en
- * el navegador: al servidor solo llega el data URL ya procesado.
+ * Reduce la imagen, la aplana sobre fondo blanco (un PNG transparente puede
+ * salir negro en térmica) y la pasa a escala de grises ("gray") o a blanco y
+ * negro puro ("bw", para QR: módulos nítidos). Todo en el navegador: al
+ * servidor solo llega el data URL ya procesado.
  */
-async function processLogo(file: File, grayscale: boolean): Promise<string> {
+async function processImage(file: File, mode: ImageMode, maxW: number, maxH: number): Promise<string> {
   if (!/^image\/(png|jpeg|webp|gif|svg\+xml)$/.test(file.type)) {
     throw new Error("Formato no soportado. Usa PNG, JPG, WEBP, GIF o SVG.")
   }
@@ -75,7 +81,7 @@ async function processLogo(file: File, grayscale: boolean): Promise<string> {
     })
     const w0 = img.naturalWidth || 400
     const h0 = img.naturalHeight || 200
-    const scale = Math.min(1, LOGO_MAX_WIDTH / w0, LOGO_MAX_HEIGHT / h0)
+    const scale = Math.min(1, maxW / w0, maxH / h0)
     const w = Math.max(1, Math.round(w0 * scale))
     const h = Math.max(1, Math.round(h0 * scale))
     const canvas = document.createElement("canvas")
@@ -85,11 +91,12 @@ async function processLogo(file: File, grayscale: boolean): Promise<string> {
     ctx.fillStyle = "#fff"
     ctx.fillRect(0, 0, w, h)
     ctx.drawImage(img, 0, 0, w, h)
-    if (grayscale) {
+    if (mode !== "color") {
       const data = ctx.getImageData(0, 0, w, h)
       const px = data.data
       for (let i = 0; i < px.length; i += 4) {
-        const l = Math.round(0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2])
+        let l = Math.round(0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2])
+        if (mode === "bw") l = l < 150 ? 0 : 255
         px[i] = px[i + 1] = px[i + 2] = l
       }
       ctx.putImageData(data, 0, 0)
@@ -97,7 +104,7 @@ async function processLogo(file: File, grayscale: boolean): Promise<string> {
     let out = canvas.toDataURL("image/png")
     if (out.length > LOGO_MAX_CHARS) out = canvas.toDataURL("image/jpeg", 0.85)
     if (out.length > LOGO_MAX_CHARS) out = canvas.toDataURL("image/jpeg", 0.6)
-    if (out.length > LOGO_MAX_CHARS) throw new Error("El logo es demasiado complejo; prueba con una versión más simple.")
+    if (out.length > LOGO_MAX_CHARS) throw new Error("La imagen es demasiado pesada; prueba con una versión más simple.")
     return out
   } finally {
     URL.revokeObjectURL(url)
@@ -111,7 +118,9 @@ export function TicketSettingsCard({ companyId, initial, sampleStoreName, onSave
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [logoGray, setLogoGray] = useState(true)
   const [logoError, setLogoError] = useState<string | null>(null)
+  const [qrError, setQrError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const qrFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => setDraft(initial), [initial])
 
@@ -136,11 +145,23 @@ export function TicketSettingsCard({ companyId, initial, sampleStoreName, onSave
     if (!file) return
     setLogoError(null)
     try {
-      setBusiness({ logo: await processLogo(file, logoGray) })
+      setBusiness({ logo: await processImage(file, logoGray ? "gray" : "color", LOGO_MAX_WIDTH, LOGO_MAX_HEIGHT) })
     } catch (err) {
       setLogoError(err instanceof Error ? err.message : "No se pudo leer la imagen")
     } finally {
       if (fileRef.current) fileRef.current.value = ""
+    }
+  }
+
+  const handleQrImage = async (file: File | undefined) => {
+    if (!file) return
+    setQrError(null)
+    try {
+      setReceipt({ qrImage: await processImage(file, "bw", 600, 600) })
+    } catch (err) {
+      setQrError(err instanceof Error ? err.message : "No se pudo leer la imagen")
+    } finally {
+      if (qrFileRef.current) qrFileRef.current.value = ""
     }
   }
 
@@ -337,18 +358,81 @@ export function TicketSettingsCard({ companyId, initial, sampleStoreName, onSave
                       <Field label="Texto sobre el QR">
                         <Input value={draft.receipt.qrTitle} maxLength={60} onChange={(e) => setReceipt({ qrTitle: e.target.value })} />
                       </Field>
-                      <Field label="Enlace del QR" hint="Web, Instagram, WhatsApp (wa.me/51...), carta digital…">
-                        <Input
-                          value={draft.receipt.qrUrl}
-                          maxLength={300}
-                          placeholder="https://instagram.com/multipizza"
-                          onChange={(e) => setReceipt({ qrUrl: e.target.value })}
-                        />
+                      <Field label="¿De dónde sale el QR?">
+                        <Select value={draft.receipt.qrMode} onValueChange={(v) => setReceipt({ qrMode: v as QrMode })}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {QR_MODES.map((m) => (
+                              <SelectItem key={m} value={m}>
+                                {QR_MODE_LABELS[m]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </Field>
                     </div>
-                    <Toggle label="Mostrar el enlace debajo del QR" checked={draft.receipt.qrShowUrl} onChange={(v) => setReceipt({ qrShowUrl: v })} />
-                    {!draft.receipt.qrUrl.trim() && (
-                      <p className="text-xs text-amber-500">Sin enlace el QR no se imprime.</p>
+
+                    {draft.receipt.qrMode === "link" ? (
+                      <>
+                        <Field label="Enlace del QR" hint="Web, Instagram, WhatsApp (wa.me/51...), carta digital…">
+                          <Input
+                            value={draft.receipt.qrUrl}
+                            maxLength={300}
+                            placeholder="https://instagram.com/multipizza"
+                            onChange={(e) => setReceipt({ qrUrl: e.target.value })}
+                          />
+                        </Field>
+                        <Toggle
+                          label="Mostrar el enlace debajo del QR"
+                          checked={draft.receipt.qrShowUrl}
+                          onChange={(v) => setReceipt({ qrShowUrl: v })}
+                        />
+                        {!draft.receipt.qrUrl.trim() && (
+                          <p className="text-xs text-amber-500">Sin enlace el QR no se imprime.</p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="flex h-28 w-28 items-center justify-center rounded-md border border-dashed border-border bg-white p-1">
+                          {draft.receipt.qrImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={draft.receipt.qrImage} alt="QR" className="max-h-full max-w-full object-contain" />
+                          ) : (
+                            <span className="text-xs text-neutral-500 text-center">Sin imagen</span>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <input
+                            ref={qrFileRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                            className="hidden"
+                            onChange={(e) => void handleQrImage(e.target.files?.[0])}
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" onClick={() => qrFileRef.current?.click()}>
+                              <QrCode className="h-4 w-4 mr-1" />
+                              {draft.receipt.qrImage ? "Cambiar imagen del QR" : "Subir imagen del QR"}
+                            </Button>
+                            {draft.receipt.qrImage && (
+                              <Button size="sm" variant="ghost" onClick={() => setReceipt({ qrImage: "" })}>
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Quitar
+                              </Button>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground max-w-xs">
+                            Sube la imagen del QR recortada al cuadrado (sin bordes grandes). Se convierte a blanco y
+                            negro para que se escanee bien en la térmica.
+                          </p>
+                          {qrError && <p className="text-xs text-destructive">{qrError}</p>}
+                          {!draft.receipt.qrImage && (
+                            <p className="text-xs text-amber-500">Sin imagen el QR no se imprime.</p>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </>
                 )}
