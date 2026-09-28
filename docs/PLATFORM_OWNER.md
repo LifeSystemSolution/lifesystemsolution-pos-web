@@ -155,3 +155,18 @@ sigue leyendo `SUNAT_API_*` de las variables de entorno globales. Falta:
 - Integración de cobro (Stripe/Culqi/etc.).
 - Cambiar la contraseña no invalida los JWT ya emitidos (duran 7 días);
   **desactivar** la cuenta sí corta de inmediato — usar eso si hay urgencia.
+
+## Borrar datos de prueba (2026-09-28)
+
+`/plataforma/empresas/[id]` → **Datos de prueba**. Borra la operación de toda
+la empresa o de un solo local: pedidos, cajas, saldos y movimientos, gastos,
+comprobantes, reportes e historial (lista exacta en
+`lib/local/test-data-reset.ts`, `TRANSACTIONAL_COLLECTIONS`). No toca
+productos, mesas, usuarios, locales, inventario, cuentas ni configuración.
+
+- Muestra antes cuántos registros se borran (`GET .../test-data`).
+- Exige escribir el nombre exacto del local o de la empresa (lo verifica el
+  servidor) y solo lo puede usar el dueño de la plataforma.
+- Por defecto devuelve al stock lo que descontaron esos pedidos (los ítems
+  anulados no, porque ya se devolvieron al anularse) y libera las mesas.
+- Todo en una transacción: si algo falla, no se borra nada.

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { platformFetch } from "@/lib/local/platform-client"
 import { ConfirmDeleteDialog } from "@/components/platform/confirm-delete-dialog"
 import { TicketSettingsCard } from "@/components/platform/ticket-settings-card"
+import { TestDataCard } from "@/components/platform/test-data-card"
 import type { TicketConfig } from "@/lib/print/ticket-config"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -632,6 +633,13 @@ export default function PlataformaEmpresaDetailPage() {
         sampleStoreName={stores[0]?.name}
         onSaved={() => void load()}
         onError={(err) => fail(err, "Error guardando el formato de impresión")}
+      />
+
+      {/* Datos de prueba */}
+      <TestDataCard
+        companyId={company.id}
+        stores={stores}
+        onError={(err) => fail(err, "Error borrando los datos de prueba")}
       />
 
       {/* Diálogos */}
