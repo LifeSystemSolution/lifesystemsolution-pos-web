@@ -2,11 +2,12 @@
 
 import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
-import { Building2, Users2, Wallet, LogOut } from "lucide-react"
+import { Building2, Users2, Wallet, LogOut, KeyRound } from "lucide-react"
+import { ChangePasswordDialog } from "@/components/platform/change-password-dialog"
 
 // Panel de plataforma: independiente del panel /admin de cada empresa. No
 // exige PIN operativo ni tienda seleccionada (Paso 2) — solo el login de
@@ -19,6 +20,7 @@ export default function PlataformaLayout({
 }) {
   const { firebaseUser, isRestoring, isPlatformOwner, firebaseLogout } = useAuth()
   const router = useRouter()
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     if (isRestoring) return
@@ -62,6 +64,10 @@ export default function PlataformaLayout({
                 <span className="hidden sm:inline">Planes</span>
               </Button>
             </Link>
+            <Button variant="ghost" size="sm" className="gap-2" onClick={() => setShowPassword(true)}>
+              <KeyRound className="h-4 w-4" />
+              <span className="hidden sm:inline">Contraseña</span>
+            </Button>
             <Button variant="ghost" size="sm" className="gap-2" onClick={() => firebaseLogout()}>
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Salir</span>
@@ -70,6 +76,7 @@ export default function PlataformaLayout({
         </div>
       </header>
       <main className="p-3 sm:p-6 max-w-6xl mx-auto">{children}</main>
+      <ChangePasswordDialog open={showPassword} onOpenChange={setShowPassword} email={firebaseUser.email || ""} />
     </div>
   )
 }
