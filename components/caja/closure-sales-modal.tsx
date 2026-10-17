@@ -1,5 +1,6 @@
 "use client"
 
+import { useReceiptReprint } from "@/lib/hooks/use-receipt-reprint"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
@@ -113,9 +114,11 @@ export function ClosureSalesModal({ isOpen, onClose, cashClosure }: ClosureSales
     }
   }
 
+  // Antes: window.print() imprimía la pantalla completa. Ahora, el mismo
+  // ticket (formato y N° de comprobante) que al cobrar.
+  const reprint = useReceiptReprint()
   const handlePrint = (order: Order) => {
-    // Print logic - you can customize this
-    window.print()
+    void reprint(order)
   }
 
   const totalSales = orders.reduce((sum, order) => sum + order.total, 0)

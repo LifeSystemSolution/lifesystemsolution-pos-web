@@ -27,6 +27,7 @@ import { Receipt, FileText, FileCode, RefreshCw, Search, X } from "lucide-react"
 import { toPeruDate, formatCurrency } from "@/lib/utils"
 import FacturacionService from "@/lib/services/facturacion-service"
 import type { ComprobanteRegistro, TipoComprobante } from "@/lib/models/comprobante"
+import { useBusinessFeatures } from "@/lib/business/client"
 
 const TIPO_LABEL: Record<TipoComprobante, string> = {
   NOTA_VENTA: "Nota de Venta",
@@ -55,6 +56,7 @@ function EstadoBadge({ estado, tipo }: { estado?: string; tipo: TipoComprobante 
 
 export default function ComprobantesPage() {
   const { currentStoreId } = useAuth()
+  const { sunatAvailable } = useBusinessFeatures()
   const { toast } = useToast()
 
   const [comprobantes, setComprobantes] = useState<ComprobanteRegistro[]>([])
@@ -125,6 +127,8 @@ export default function ComprobantesPage() {
       { total: 0, cantidad: 0, porTipo: {} as Record<string, number> }
     )
   }, [filtrados])
+  // Boletas/Facturas solo con SUNAT conectado (o si ya hay alguna emitida).
+  const showSunatDocs = sunatAvailable || (resumen.porTipo["BOLETA"] || 0) > 0 || (resumen.porTipo["FACTURA"] || 0) > 0
 
   const handleRefrescar = async (c: ComprobanteRegistro) => {
     if (!c.id) return
@@ -175,18 +179,22 @@ export default function ComprobantesPage() {
             <p className="text-xl font-bold">{resumen.cantidad}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Boletas</p>
-            <p className="text-xl font-bold">{resumen.porTipo["BOLETA"] || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Facturas</p>
-            <p className="text-xl font-bold">{resumen.porTipo["FACTURA"] || 0}</p>
-          </CardContent>
-        </Card>
+        {showSunatDocs && (
+          <>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Boletas</p>
+                <p className="text-xl font-bold">{resumen.porTipo["BOLETA"] || 0}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground">Facturas</p>
+                <p className="text-xl font-bold">{resumen.porTipo["FACTURA"] || 0}</p>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Filtros */}
@@ -202,8 +210,8 @@ export default function ComprobantesPage() {
             <SelectContent>
               <SelectItem value="all">Todos los tipos</SelectItem>
               <SelectItem value="NOTA_VENTA">Nota de Venta</SelectItem>
-              <SelectItem value="BOLETA">Boleta</SelectItem>
-              <SelectItem value="FACTURA">Factura</SelectItem>
+              {showSunatDocs && <SelectItem value="BOLETA">Boleta</SelectItem>}
+              {showSunatDocs && <SelectItem value="FACTURA">Factura</SelectItem>}
             </SelectContent>
           </Select>
 

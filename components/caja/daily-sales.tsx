@@ -22,6 +22,7 @@ import type { Order, Store } from "@/lib/firebase/firestore"
 import { collections, recalculateCashRegisterAfterOrderDeletion, getDocument } from "@/lib/firebase/firestore"
 import { formatPeruTime, getPeruDayKey, toPeruDate, calculateItemTotal } from "@/lib/utils"
 import { cn } from "@/lib/utils"
+import { useReceiptReprint } from "@/lib/hooks/use-receipt-reprint"
 import { deleteDoc, doc } from "@/lib/local/firebase-shim/firestore"
 import { db } from "@/lib/local/db-placeholder"
 
@@ -61,54 +62,10 @@ export function DailySales({ orders }: DailySalesProps) {
     }
   }, [todaysSales])
 
+  // Mismo formato que al cobrar (y mismo N° de comprobante): ver use-receipt-reprint.
+  const reprint = useReceiptReprint()
   const handlePrint = (order: Order) => {
-    // Create a printable version
-    const printContent = `
-      <html>
-        <head>
-          <title>Recibo - ${order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .items { margin: 20px 0; }
-            .item { display: flex; justify-content: space-between; margin: 5px 0; }
-            .total { border-top: 2px solid #000; padding-top: 10px; font-weight: bold; font-size: 18px; }
-            .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h2>Recibo de Venta</h2>
-            <p>${order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}</p>
-            <p>${formatPeruTime(order.createdAt)}</p>
-          </div>
-          <div class="items">
-            ${order.items.map(item => `
-              <div class="item">
-                <span>${item.quantity}x ${item.productName}${item.variantName ? ` - ${item.variantName}` : ''}</span>
-                <span>S/ ${calculateItemTotal(item.price, item.quantity)}</span>
-              </div>
-            `).join('')}
-          </div>
-          <div class="total">
-            <div class="item">
-              <span>Total:</span>
-              <span>S/ ${order.total.toFixed(2)}</span>
-            </div>
-          </div>
-          <div class="footer">
-            <p>Método de pago: ${order.paymentMethod || 'Mixto'}</p>
-            <p>${new Date().toLocaleString("es-PE")}</p>
-          </div>
-        </body>
-      </html>
-    `
-    const printWindow = window.open("", "", "width=400,height=600")
-    if (printWindow) {
-      printWindow.document.write(printContent)
-      printWindow.document.close()
-      printWindow.print()
-    }
+    void reprint(order)
   }
 
   const handleDelete = async (order: Order) => {

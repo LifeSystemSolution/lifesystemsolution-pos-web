@@ -21,11 +21,17 @@ import {
   type BusinessType,
 } from "@/lib/business/profiles"
 
-export type BusinessSettings = { businessType: BusinessType; features: BusinessFeatures }
+export type BusinessSettings = {
+  businessType: BusinessType
+  features: BusinessFeatures
+  /** Boleta y factura disponibles: el rubro las usa Y la API de SUNAT está configurada. */
+  sunatAvailable: boolean
+}
 
 const DEFAULT_SETTINGS: BusinessSettings = {
   businessType: DEFAULT_BUSINESS_TYPE,
   features: featuresFor(DEFAULT_BUSINESS_TYPE),
+  sunatAvailable: false,
 }
 
 let cache: { token: string; promise: Promise<BusinessSettings> } | null = null
@@ -38,7 +44,8 @@ export function getBusinessSettings(): Promise<BusinessSettings> {
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
     .then((json) => {
       const businessType = normalizeBusinessType(json?.businessType)
-      return { businessType, features: featuresFor(businessType) }
+      const features = featuresFor(businessType)
+      return { businessType, features, sunatAvailable: features.sunatDocs && json?.sunatConfigured === true }
     })
     .catch((err) => {
       console.warn("[business] No se pudo leer el rubro; se usa el completo:", err)
@@ -62,7 +69,7 @@ export function useBusinessSettings(): BusinessSettings & { loaded: boolean } {
   return state
 }
 
-export function useBusinessFeatures(): BusinessFeatures & { loaded: boolean } {
+export function useBusinessFeatures(): BusinessFeatures & { sunatAvailable: boolean; loaded: boolean } {
   const s = useBusinessSettings()
-  return { ...s.features, loaded: s.loaded }
+  return { ...s.features, sunatAvailable: s.sunatAvailable, loaded: s.loaded }
 }

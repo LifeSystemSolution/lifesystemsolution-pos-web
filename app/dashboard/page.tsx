@@ -196,6 +196,8 @@ export default function DashboardPage() {
     }
     return base
   }, [filteredComprobantes])
+  const showSunatDocs =
+    sunatConfigured === true || comprobantesPorTipo.BOLETA.cantidad > 0 || comprobantesPorTipo.FACTURA.cantidad > 0
 
   // Desglose por estado SUNAT (solo aplica a Boleta/Factura, Nota de Venta es interna)
   const estadoSunat = useMemo(() => {
@@ -416,7 +418,8 @@ export default function DashboardPage() {
           <Receipt className="h-4 w-4" />
           Comprobantes emitidos
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        {/* Boletas/Facturas solo con SUNAT conectado (o si ya hubo alguna emitida). */}
+        <div className={showSunatDocs ? "grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4" : "grid grid-cols-1 gap-3 sm:gap-4"}>
           <Card>
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
@@ -429,6 +432,8 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+          {showSunatDocs && (
+          <>
           <Card>
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
@@ -453,6 +458,8 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+          </>
+          )}
         </div>
 
         {/* Estado ante SUNAT (solo Boleta + Factura) — oculto por completo

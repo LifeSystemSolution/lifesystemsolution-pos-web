@@ -941,8 +941,9 @@ export default function CajaPage() {
                 {/* Tipo de Comprobante */}
                 <div className="space-y-3">
                   <label className="text-sm font-medium">Tipo de Comprobante</label>
-                  <div className={features.sunatDocs ? "grid grid-cols-3 gap-2" : "grid grid-cols-1 gap-2"}>
-                    {((features.sunatDocs ? ["NOTA_VENTA", "BOLETA", "FACTURA"] : ["NOTA_VENTA"]) as TipoComprobante[]).map((tipo) => (
+                  {/* Boleta/factura solo si el rubro las usa Y hay API de SUNAT configurada; si no, solo nota de venta. */}
+                  <div className={features.sunatAvailable ? "grid grid-cols-3 gap-2" : "grid grid-cols-1 gap-2"}>
+                    {((features.sunatAvailable ? ["NOTA_VENTA", "BOLETA", "FACTURA"] : ["NOTA_VENTA"]) as TipoComprobante[]).map((tipo) => (
                       <Button
                         key={tipo}
                         type="button"

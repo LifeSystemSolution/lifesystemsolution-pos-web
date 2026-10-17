@@ -29,7 +29,12 @@ export async function GET(req: NextRequest) {
       [session.accountId]
     )
     const businessType = normalizeBusinessType(rows[0]?.business_type)
-    return NextResponse.json({ businessType, features: featuresFor(businessType) })
+    // Boleta/factura solo se pueden emitir si la API de facturación está
+    // configurada en el servidor (las mismas variables que usa /api/facturacion).
+    const sunatConfigured = Boolean(
+      process.env.SUNAT_API_BASE_URL && process.env.SUNAT_API_KEY && process.env.SUNAT_API_SECRET
+    )
+    return NextResponse.json({ businessType, features: featuresFor(businessType), sunatConfigured })
   } catch (err) {
     console.error("[api/company/settings] Error:", err)
     return NextResponse.json({ error: "No se pudo leer la configuración de la empresa" }, { status: 500 })
