@@ -52,7 +52,7 @@ import { ClosureSalesModal } from "@/components/caja/closure-sales-modal"
 import { CashDistribution } from "@/components/caja/cash-distribution"
 import { RecentMovements } from "@/components/caja/recent-movements"
 import { CashMovementModal } from "@/components/caja/cash-movement-modal"
-import { renderReceiptHTML, printHTML } from "@/lib/print/ticket-render"
+import { renderReceiptHTML, renderPrecuentaHTML, printHTML } from "@/lib/print/ticket-render"
 import { useTicketConfig } from "@/lib/hooks/use-ticket-config"
 import { useStoreStock, remainingFor } from "@/lib/hooks/use-store-stock"
 import { useBusinessFeatures } from "@/lib/business/client"
@@ -1046,17 +1046,18 @@ export default function CajaPage() {
                   )}
                 </Button>
 
-                {/* Print Receipt Button */}
+                {/* Precuenta: para que el cliente vea lo que se le cobrará, antes de pagar */}
                 <Button
                   onClick={() => {
-                    if (!lastProcessedOrder) return
-                    printHTML(renderReceiptHTML(lastProcessedOrder, currentStore || undefined, ticketConfig))
+                    if (!selectedOrder) return
+                    printHTML(renderPrecuentaHTML(selectedOrder, currentStore || undefined, ticketConfig))
                   }}
                   variant="outline"
                   className="w-full"
+                  disabled={!selectedOrder}
                 >
                   <Printer className="h-4 w-4 mr-2" />
-                  Reimprimir Ticket
+                  Imprimir precuenta
                 </Button>
               </CardContent>
             </Card>

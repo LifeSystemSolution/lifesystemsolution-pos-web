@@ -365,6 +365,27 @@ export function renderReceiptHTML(order: Order, store: StoreLike | undefined, cf
   return PAPER_SPECS[cfg.receipt.paper].thermal ? thermalReceipt(order, store, cfg) : pageReceipt(order, store, cfg)
 }
 
+/**
+ * Precuenta: lo que se le va a cobrar al cliente, ANTES del pago. Mismo diseño
+ * que la nota de venta (logo, papel, QR — útil si es el de Yape), pero sin
+ * número de comprobante ni forma de pago, y aclarando que no es comprobante.
+ */
+export function renderPrecuentaHTML(order: Order, store: StoreLike | undefined, cfg: TicketConfig): string {
+  const notice = "Documento no válido como comprobante de pago"
+  const precuentaCfg: TicketConfig = {
+    ...cfg,
+    receipt: {
+      ...cfg.receipt,
+      title: "PRECUENTA",
+      showPaymentMethod: false,
+      showEstimatedTime: false,
+      footerText: [notice, cfg.receipt.footerText].filter((t) => t.trim()).join("\n"),
+    },
+  }
+  // Fecha y hora de impresión (no la de creación del pedido) y sin el N° de la nota de venta.
+  return renderReceiptHTML({ ...order, documentNumber: undefined, createdAt: new Date() as any }, store, precuentaCfg)
+}
+
 // --- Comanda de cocina -------------------------------------------------------------
 
 export function renderKitchenHTML(order: Order, store: StoreLike | undefined, cfg: TicketConfig): string {
