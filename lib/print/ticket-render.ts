@@ -411,7 +411,7 @@ export function renderKitchenHTML(order: Order, store: StoreLike | undefined, cf
   })
 }
 
-// --- Conteo de stock al cierre (comida rápida) ------------------------------------
+// --- Conteo de stock al cierre y "vendido hoy" (comida rápida) -----------------------
 
 export type StockCountLine = {
   category: string
@@ -420,18 +420,75 @@ export type StockCountLine = {
   toBuy: boolean
 }
 
+export type SalesTallyPrint = {
+  lines: { name: string; quantity: number; total: number }[]
+  totalAmount: number
+  ordersCount: number
+}
+
+const TALLY_CSS = `
+  .r { padding: 2mm 0 4mm; }
+  .title { text-align: center; font-weight: bold; font-size: calc(15px * var(--f)); letter-spacing: .04em; }
+  .sub { text-align: center; font-size: calc(10.5px * var(--f)); }
+  .sep { border-top: 1px dashed #000; margin: 2mm 0; }
+  .sec { text-align: center; font-weight: bold; font-size: calc(13px * var(--f)); border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 1mm 0; margin-top: 3mm; }
+  .cat { font-weight: bold; text-transform: uppercase; margin-top: 2mm; font-size: calc(10.5px * var(--f)); }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: calc(9px * var(--f)); text-align: left; border-bottom: 1px dashed #000; padding: .6mm 0; }
+  td { padding: .4mm 0; vertical-align: top; }
+  td.q, th.q { text-align: right; white-space: nowrap; font-weight: bold; width: 14%; }
+  td.m, th.m { text-align: right; white-space: nowrap; width: 24%; }
+  .zero td { font-weight: bold; }
+  .tot td { border-top: 1px solid #000; font-weight: bold; padding-top: 1mm; }
+  .box { display: inline-block; width: 3.2mm; height: 3.2mm; border: 1px solid #000; margin-right: 1.5mm; vertical-align: -0.5mm; }
+  .small { text-align: center; font-size: calc(9.5px * var(--f)); margin-top: 3mm; }
+`
+
+function salesSection(sales: SalesTallyPrint): string {
+  if (!sales.lines.length) return `<div class="sec">VENDIDO HOY</div><div class="sub">Sin ventas cobradas</div>`
+  const units = sales.lines.reduce((s, l) => s + l.quantity, 0)
+  return [
+    `<div class="sec">VENDIDO HOY</div>`,
+    `<table><thead><tr><th>PRODUCTO</th><th class="q">CANT</th><th class="m">MONTO</th></tr></thead><tbody>`,
+    sales.lines.map((l) => `<tr><td>${esc(l.name)}</td><td class="q">${l.quantity}</td><td class="m">${amount(l.total)}</td></tr>`).join(""),
+    `<tr class="tot"><td>TOTAL (${sales.ordersCount} pedidos)</td><td class="q">${units}</td><td class="m">${money(sales.totalAmount)}</td></tr>`,
+    `</tbody></table>`,
+  ].join("")
+}
+
+function tallyShell(title: string, body: string, cfg: TicketConfig) {
+  const r = cfg.receipt
+  return documentShell({
+    title,
+    paper: r.paper,
+    fontScale: r.fontScale,
+    fontFamily: r.fontFamily === "mono" ? MONO : SANS,
+    css: TALLY_CSS,
+    body,
+  })
+}
+
+function tallyHeader(title: string, subtitle: string, meta: { storeName?: string; countedBy?: string; date: Date }) {
+  return [
+    `<div class="title">${esc(title)}</div>`,
+    `<div class="sub">${esc(subtitle)}</div>`,
+    meta.storeName ? `<div class="sub">${esc(meta.storeName)}</div>` : "",
+    `<div class="sub">${esc(formatReceiptDateTime(meta.date))}</div>`,
+    meta.countedBy ? `<div class="sub">${esc(meta.countedBy)}</div>` : "",
+  ].join("")
+}
+
 /**
- * Ticket del conteo de stock al cerrar caja: lo que hay de cada producto y,
- * aparte, la lista "POR COMPRAR" con casillas para tachar al día siguiente.
+ * Ticket del cierre (comida rápida): lo vendido en el día, el conteo del
+ * checklist y la lista POR COMPRAR con casillas para tachar al día siguiente.
  * Usa el papel y la letra de la nota de venta.
  */
 export function renderStockCountHTML(
   lines: StockCountLine[],
   meta: { storeName?: string; countedBy?: string; date: Date },
-  cfg: TicketConfig
+  cfg: TicketConfig,
+  sales?: SalesTallyPrint
 ): string {
-  const r = cfg.receipt
-  const thermal = PAPER_SPECS[r.paper].thermal
   const byCategory = new Map<string, StockCountLine[]>()
   for (const l of lines) {
     const k = l.category || "OTROS"
@@ -439,21 +496,7 @@ export function renderStockCountHTML(
     byCategory.get(k)!.push(l)
   }
   const toBuy = lines.filter((l) => l.toBuy)
-  const css = `
-  .r { padding: ${thermal ? "2mm 0 4mm" : "0"}; }
-  .title { text-align: center; font-weight: bold; font-size: calc(15px * var(--f)); letter-spacing: .04em; }
-  .sub { text-align: center; font-size: calc(10.5px * var(--f)); }
-  .sep { border-top: 1px dashed #000; margin: 2mm 0; }
-  .cat { font-weight: bold; text-transform: uppercase; margin-top: 2mm; font-size: calc(10.5px * var(--f)); }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: .4mm 0; vertical-align: top; }
-  td.q { text-align: right; white-space: nowrap; font-weight: bold; width: 18%; }
-  .zero td { font-weight: bold; }
-  .buy-title { text-align: center; font-weight: bold; font-size: calc(13px * var(--f)); border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 1mm 0; margin-top: 3mm; }
-  .box { display: inline-block; width: 3.2mm; height: 3.2mm; border: 1px solid #000; margin-right: 1.5mm; vertical-align: -0.5mm; }
-  .small { text-align: center; font-size: calc(9.5px * var(--f)); margin-top: 3mm; }
-  `
-  const sections = Array.from(byCategory.entries())
+  const count = Array.from(byCategory.entries())
     .map(
       ([cat, ls]) =>
         `<div class="cat">${esc(cat)}</div><table>${ls
@@ -462,31 +505,33 @@ export function renderStockCountHTML(
     )
     .join("")
   const buyList = toBuy.length
-    ? `<div class="buy-title">POR COMPRAR (${toBuy.length})</div><table>${toBuy
+    ? `<div class="sec">POR COMPRAR (${toBuy.length})</div><table>${toBuy
         .map((l) => `<tr><td><span class="box"></span>${esc(l.name)}</td><td class="q">hay ${l.counted}</td></tr>`)
         .join("")}</table>`
-    : `<div class="buy-title">NADA POR COMPRAR</div>`
+    : `<div class="sec">NADA POR COMPRAR</div>`
   const body = [
     `<div class="r">`,
-    `<div class="title">CONTEO DE STOCK</div>`,
-    `<div class="sub">Cierre de caja</div>`,
-    meta.storeName ? `<div class="sub">${esc(meta.storeName)}</div>` : "",
-    `<div class="sub">${esc(formatReceiptDateTime(meta.date))}</div>`,
-    meta.countedBy ? `<div class="sub">Contó: ${esc(meta.countedBy)}</div>` : "",
-    `<div class="sep"></div>`,
-    sections,
-    buyList,
-    `<div class="small">${lines.length} productos contados</div>`,
+    tallyHeader("CIERRE DEL DÍA", "Ventas y conteo de stock", {
+      ...meta,
+      countedBy: meta.countedBy ? `Contó: ${meta.countedBy}` : undefined,
+    }),
+    sales ? salesSection(sales) : "",
+    lines.length ? `<div class="sec">CONTEO DE STOCK</div>${count}` : "",
+    lines.length ? buyList : "",
+    lines.length ? `<div class="small">${lines.length} productos contados</div>` : "",
     `</div>`,
   ].join("\n")
-  return documentShell({
-    title: "Conteo de stock",
-    paper: r.paper,
-    fontScale: r.fontScale,
-    fontFamily: r.fontFamily === "mono" ? MONO : SANS,
-    css,
-    body,
-  })
+  return tallyShell("Cierre del día", body, cfg)
+}
+
+/** Ticket solo con lo vendido hoy (se puede imprimir en cualquier momento del día). */
+export function renderSalesTallyHTML(
+  sales: SalesTallyPrint,
+  meta: { storeName?: string; countedBy?: string; date: Date },
+  cfg: TicketConfig
+): string {
+  const body = [`<div class="r">`, tallyHeader("VENDIDO HOY", "Desde la apertura de caja", meta), salesSection(sales), `</div>`].join("\n")
+  return tallyShell("Vendido hoy", body, cfg)
 }
 
 // --- Vista previa y ventana de impresión ----------------------------------------

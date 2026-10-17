@@ -17,6 +17,7 @@ abiertos toman el cambio al volver a iniciar sesión (o recargar la página).
 | `sunatDocs` — boleta y factura | Sí | No (solo nota de venta) |
 | `kitchenScreen` — pantalla de cocina en el menú | Sí | No (comanda impresa) |
 | `closingStockCount` — conteo de stock al cerrar caja + ticket | No | Sí |
+| `dailySalesTally` — "Vendido hoy" por producto desde la apertura de caja | No | Sí |
 
 ## Dónde se aplica
 
@@ -34,12 +35,21 @@ abiertos toman el cambio al volver a iniciar sesión (o recargar la página).
 1. El mesero toma el pedido → se imprime la comanda para cocina.
 2. El pedido aparece en caja de inmediato; se cobra con **nota de venta**
    (numeración interna NV01-…).
-3. Se vende sin depender del stock.
-4. Al **cerrar caja** se abre el **conteo de stock**
-   (`components/caja/stock-count-dialog.tsx`): una línea por producto y
-   presentación con la cantidad registrada, casilla "Comprar". Al guardar se
-   actualiza el stock, queda el historial en `stock_counts` y se puede
-   imprimir el ticket con la lista **POR COMPRAR** para el día siguiente.
+3. **No hay descuento de stock por venta.** En su lugar, caja muestra
+   **"Vendido hoy"** (`components/caja/sales-tally-card.tsx`,
+   `lib/business/sales-tally.ts`): cantidad y monto por producto de lo
+   cobrado en la caja abierta. Empieza en 0 en cada apertura de caja (sale de
+   los pedidos de esa caja; no se guarda ni se reinicia a mano). Se imprime
+   cuando se quiera.
+4. Al **cerrar caja** se abre el **cierre del día**
+   (`components/caja/stock-count-dialog.tsx`): checklist de conteo sobre la
+   **lista propia del local** (colección `stock_items`: pan, carnes, papas,
+   gaseosas…, no los platos de la carta). La lista se arma **una vez**
+   ("Editar lista", o "Usar lista sugerida de comida rápida") y queda como
+   predeterminada. Cada producto trae lo último contado; "Comprar" se marca
+   solo cuando la cantidad es 0 (salvo que se cambie a mano). Al guardar:
+   `lastCount` en cada `stock_item`, registro en `stock_counts` (incluye lo
+   vendido) y el ticket **CIERRE DEL DÍA**: VENDIDO HOY + CONTEO + POR COMPRAR.
    También hay un botón "Conteo de stock" en caja para hacerlo en cualquier
    momento.
 

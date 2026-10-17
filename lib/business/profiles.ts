@@ -28,6 +28,8 @@ export interface BusinessFeatures {
   kitchenScreen: boolean
   /** Conteo de stock (checklist) al cerrar caja, con ticket para las compras del día siguiente. */
   closingStockCount: boolean
+  /** "Vendido hoy": cantidad y monto por producto desde que se abrió caja (arranca en 0 cada apertura). */
+  dailySalesTally: boolean
 }
 
 export const BUSINESS_PROFILES: Record<
@@ -45,12 +47,13 @@ export const BUSINESS_PROFILES: Record<
       sunatDocs: true,
       kitchenScreen: true,
       closingStockCount: false,
+      dailySalesTally: false,
     },
   },
   comida_rapida: {
     label: "Comida rápida",
     description:
-      "Básico: el mesero toma el pedido, cocina recibe la comanda impresa y se cobra en caja de inmediato con nota de venta. Vende sin depender del stock; el stock se cuenta al cerrar caja y se imprime para las compras del día siguiente.",
+      "Básico: el mesero toma el pedido, cocina recibe la comanda impresa y se cobra en caja de inmediato con nota de venta. No descuenta stock: lleva lo vendido en el día (arranca en 0 al abrir caja) y al cerrar caja se hace el checklist de conteo y se imprime lo que hay que comprar.",
     features: {
       stockControl: false,
       requireDeliveredToCharge: false,
@@ -58,6 +61,7 @@ export const BUSINESS_PROFILES: Record<
       sunatDocs: false,
       kitchenScreen: false,
       closingStockCount: true,
+      dailySalesTally: true,
     },
   },
 }

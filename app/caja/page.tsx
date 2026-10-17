@@ -57,6 +57,9 @@ import { useTicketConfig } from "@/lib/hooks/use-ticket-config"
 import { useStoreStock, remainingFor } from "@/lib/hooks/use-store-stock"
 import { useBusinessFeatures } from "@/lib/business/client"
 import { StockCountDialog } from "@/components/caja/stock-count-dialog"
+import { SalesTallyCard } from "@/components/caja/sales-tally-card"
+import { summarizeSales, type SalesTally } from "@/lib/business/sales-tally"
+import { renderSalesTallyHTML } from "@/lib/print/ticket-render"
 import FacturacionService, { ClienteVarios } from "@/lib/services/facturacion-service"
 import { useDocumentLookup } from "@/lib/hooks/use-document-lookup"
 import type { ClienteLocal } from "@/lib/services/clientes-service"
@@ -83,6 +86,11 @@ export default function CajaPage() {
   const stock = useStoreStock(features.stockControl ? currentStoreId : null)
   const [showStockCount, setShowStockCount] = useState(false)
   const [stockCountRegisterId, setStockCountRegisterId] = useState<string | undefined>(undefined)
+  // Lo vendido que acompaña al conteo (al cerrar caja se toma ANTES de cerrar:
+  // después de cerrar, las ventas de esa caja ya no están en pantalla).
+  const [stockCountSales, setStockCountSales] = useState<SalesTally | undefined>(undefined)
+  // "Vendido hoy": lo cobrado en la caja abierta (empieza en 0 en cada apertura).
+  const salesTally = useMemo(() => summarizeSales(paidOrders), [paidOrders])
   const { toast } = useToast()
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -467,6 +475,7 @@ export default function CajaPage() {
 
   const handleCloseCashRegister = async () => {
     const amount = parseFloat(countedCash) || 0
+    const closingSales = features.dailySalesTally ? summarizeSales(paidOrders) : undefined
     try {
       const closureId = cashRegister?.id
       await closeCashRegister(amount)
@@ -475,6 +484,7 @@ export default function CajaPage() {
       if (features.closingStockCount) {
         // Sin caja fuerte: en vez de distribuir el efectivo, el checklist de stock.
         setStockCountRegisterId(closureId)
+        setStockCountSales(closingSales)
         setShowStockCount(true)
       } else if (closureId && features.safeBox) {
         setDistributionContext({ closureId, totalCash: amount })
@@ -1078,6 +1088,7 @@ export default function CajaPage() {
               className="w-full"
               onClick={() => {
                 setStockCountRegisterId(cashRegister?.id)
+                setStockCountSales(features.dailySalesTally && cashRegister ? salesTally : undefined)
                 setShowStockCount(true)
               }}
             >
@@ -1096,6 +1107,18 @@ export default function CajaPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Vendido hoy (comida rápida): por producto, desde la apertura de caja */}
+      {features.dailySalesTally && cashRegister && (
+        <SalesTallyCard
+          tally={salesTally}
+          onPrint={() =>
+            printHTML(
+              renderSalesTallyHTML(salesTally, { storeName: currentStore?.name, countedBy: user?.name, date: new Date() }, ticketConfig)
+            )
+          }
+        />
+      )}
 
       {/* Daily Sales Section */}
       {cashRegister && <DailySales orders={paidOrders} store={currentStore} />}
@@ -1539,6 +1562,7 @@ export default function CajaPage() {
           userName={user?.name}
           cashRegisterId={stockCountRegisterId}
           ticketConfig={ticketConfig}
+          sales={stockCountSales}
         />
       )}
 

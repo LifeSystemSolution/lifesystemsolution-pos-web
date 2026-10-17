@@ -473,6 +473,7 @@ export const collections = {
   comprobantes: "comprobantes", // Cache local de comprobantes emitidos via API SUNAT
   comprobanteCounters: "comprobante_counters", // Correlativo interno por local (notas de venta sin API)
   stockCounts: "stock_counts", // Conteos de stock al cerrar caja (rubros con closingStockCount)
+  stockItems: "stock_items", // Lista de lo que se cuenta al cerrar caja (configurada una vez por local)
   clientes: "clientes", // Clientes locales por tenant/tipo/numero de documento
   tables: "tables",
   cashRegister: "cash_register",
