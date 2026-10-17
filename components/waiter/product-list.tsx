@@ -12,6 +12,8 @@ import {
 } from "@/lib/firebase/firestore"
 import { useStoreStock, quantityByInventory } from "@/lib/hooks/use-store-stock"
 import { useBusinessFeatures } from "@/lib/business/client"
+import { useStoreCremas } from "@/lib/hooks/use-store-cremas"
+import { CremasDialog } from "./cremas-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -26,12 +28,17 @@ import { Search, Plus, ChevronDown, ChevronUp, Pizza } from "lucide-react"
 // Umbral para avisar "quedan pocas" (en ámbar) antes de que se agote.
 const LOW_STOCK = 3
 
+type PizzaOptions = { massType: PizzaMassType; flavor?: string; price: number }
+
 interface ProductListProps {
-  onAddProduct: (product: Product, variant?: ProductVariant, pizzaOptions?: { massType: PizzaMassType; flavor?: string; price: number }) => void
+  /** notes: p. ej. lo elegido en "¿Qué cremas lleva?" (va a la comanda). */
+  onAddProduct: (product: Product, variant?: ProductVariant, pizzaOptions?: PizzaOptions, notes?: string) => void
 }
 
 export function ProductList({ onAddProduct }: ProductListProps) {
   const { products, cart } = usePOS()
+  // Productos con "Lleva cremas": antes de agregarlos se pregunta qué cremas.
+  const [pendingCremas, setPendingCremas] = useState<{ product: Product; variant?: ProductVariant; pizzaOptions?: PizzaOptions } | null>(null)
   const { currentStoreId } = useAuth()
   const [search, setSearch] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -47,6 +54,16 @@ export function ProductList({ onAddProduct }: ProductListProps) {
   // Rubros que venden sin control de stock (comida rápida): no se marca ni bloquea nada.
   const { stockControl } = useBusinessFeatures()
   const stock = useStoreStock(stockControl ? currentStoreId : null)
+  const { cremas } = useStoreCremas(currentStoreId)
+
+  /** Agrega al carrito, o primero pregunta las cremas si el producto las lleva. */
+  const addProduct = (product: Product, variant?: ProductVariant, pizzaOptions?: PizzaOptions) => {
+    if (product.allowsCremas) {
+      setPendingCremas({ product, variant, pizzaOptions })
+      return
+    }
+    onAddProduct(product, variant, pizzaOptions)
+  }
 
   // Lo que ya está en el carrito también cuenta: si quedan 2 y hay 2 en el
   // carrito, no se puede agregar un tercero.
@@ -128,14 +145,14 @@ export function ProductList({ onAddProduct }: ProductListProps) {
       setExpandedProductId(expandedProductId === product.id ? null : product.id!)
     } else {
       // NON-PIZZA without variants: Add directly
-      onAddProduct(product)
+      addProduct(product)
     }
   }
 
   // Handle variant selection (for non-pizza products)
   const handleVariantSelect = (product: Product, variant: ProductVariant) => {
     if (isOut(available(variantId(product, variant)))) return
-    onAddProduct(product, variant)
+    addProduct(product, variant)
     setExpandedProductId(null)
   }
 
@@ -152,7 +169,7 @@ export function ProductList({ onAddProduct }: ProductListProps) {
     }
     
     // Add pizza with explicit massType, flavor, and price from product.priceMap
-    onAddProduct(selectedPizzaFlavor, undefined, {
+    addProduct(selectedPizzaFlavor, undefined, {
       massType,
       flavor: selectedPizzaFlavor.name,
       price,
@@ -315,6 +332,22 @@ export function ProductList({ onAddProduct }: ProductListProps) {
           </div>
         ))}
       </div>
+
+      {/* ¿Qué cremas lleva? (productos con "Lleva cremas") */}
+      <CremasDialog
+        open={!!pendingCremas}
+        productLabel={
+          pendingCremas
+            ? `${pendingCremas.product.name}${pendingCremas.variant ? ` - ${pendingCremas.variant.name}` : ""}`
+            : ""
+        }
+        cremas={cremas}
+        onCancel={() => setPendingCremas(null)}
+        onConfirm={(note) => {
+          if (pendingCremas) onAddProduct(pendingCremas.product, pendingCremas.variant, pendingCremas.pizzaOptions, note)
+          setPendingCremas(null)
+        }}
+      />
 
       {/* Pizza Size Selector Modal */}
       <Dialog open={showPizzaSizeModal} onOpenChange={setShowPizzaSizeModal}>

@@ -48,9 +48,12 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { Plus, Pencil, Trash2, ToggleLeft, Store as StoreIcon, Users, Package, LayoutGrid, AlertCircle, Pizza } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { CremasSettingsCard } from "@/components/admin/cremas-settings-card"
+import { useBusinessSettings } from "@/lib/business/client"
 
 export default function AdminPage() {
   const { store, currentStoreId, isSuperAdmin } = useAuth()
+  const { businessType } = useBusinessSettings()
   const [activeTab, setActiveTab] = useState("products")
   const [products, setProducts] = useState<Product[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -76,6 +79,7 @@ export default function AdminPage() {
     price: "", // Legacy: for products without variants
     category: "",
     available: true,
+    allowsCremas: false, // "Lleva cremas": al agregarlo se pregunta qué cremas
     variants: [] as ProductVariant[],
     priceMap: {} as Record<string, string>, // Pizza: { "PERSONAL": "18", "FAMILIAR": "42", ... }
   })
@@ -150,6 +154,7 @@ export default function AdminPage() {
         price: product.price?.toString() || "",
         category: product.category,
         available: product.available,
+        allowsCremas: !!product.allowsCremas,
         variants: product.variants || [],
         priceMap: product.category?.toLowerCase() === 'pizzas' && product.priceMap 
           ? Object.entries(product.priceMap).reduce((acc, [key, val]) => {
@@ -160,7 +165,7 @@ export default function AdminPage() {
       })
     } else {
       setEditingProduct(null)
-      setProductForm({ name: "", price: "", category: "", available: true, variants: [], priceMap: {} })
+      setProductForm({ name: "", price: "", category: "", available: true, allowsCremas: false, variants: [], priceMap: {} })
     }
     setIsNewCategory(false)
     setNewCategoryName("")
@@ -258,6 +263,7 @@ export default function AdminPage() {
         category: productForm.category.trim(),
         storeId: currentStoreId,
         available: productForm.available,
+        allowsCremas: productForm.allowsCremas,
         active: true, // Set active to true for new products
       }
 
@@ -680,6 +686,11 @@ export default function AdminPage() {
               Nuevo Producto
             </Button>
           </div>
+
+          {/* Lista de cremas: en comida rápida, o si algún producto ya las lleva */}
+          {currentStoreId && (businessType === "comida_rapida" || products.some((p) => p.allowsCremas)) && (
+            <CremasSettingsCard storeId={currentStoreId} />
+          )}
 
           {Object.entries(productsByCategory).map(([category, categoryProducts]) => (
             <Card key={category}>
@@ -1193,6 +1204,23 @@ export default function AdminPage() {
               />
               <label htmlFor="available" className="text-sm">
                 Disponible para venta
+              </label>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="allowsCremas"
+                checked={productForm.allowsCremas}
+                onChange={(e) => setProductForm({ ...productForm, allowsCremas: e.target.checked })}
+                className="rounded mt-1"
+              />
+              <label htmlFor="allowsCremas" className="text-sm">
+                Lleva cremas
+                <span className="block text-xs text-muted-foreground">
+                  Al agregarlo se pregunta qué cremas lleva (encima, aparte o sin cremas). Déjalo apagado en bebidas y
+                  productos que no llevan.
+                </span>
               </label>
             </div>
           </div>

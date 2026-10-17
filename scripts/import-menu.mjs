@@ -119,6 +119,7 @@ try {
       if (p.priceMap) data.priceMap = p.priceMap
       if (p.variants) data.variants = p.variants.map((v) => ({ id: randomUUID(), name: v.name, price: v.price }))
       if (p.price !== undefined) data.price = p.price
+      if (p.allowsCremas !== undefined) data.allowsCremas = !!p.allowsCremas
 
       const inv = []
       if (p.category.toLowerCase() !== "pizzas") {

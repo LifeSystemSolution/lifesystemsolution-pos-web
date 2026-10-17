@@ -1,44 +1,266 @@
 {
-  "_nota": "Carta de DEMO para el rubro comida rápida (empresa ficticia). Basada en una carta real de sangucheria; precios de BROSTER estimados (cortados en la foto) y BEBIDAS agregadas para la demo.",
+  "_nota": "Carta de DEMO para el rubro comida rápida (empresa ficticia). Basada en una carta real de sangucheria; precios de BROSTER estimados (cortados en la foto) y BEBIDAS agregadas para la demo. allowsCremas: todo menos BEBIDAS.",
   "products": [
-    { "category": "SÁNDWICH SIMPLE", "name": "Sándwich simple", "variants": [
-      { "name": "Hamburguesa", "price": 13 }, { "name": "Hot dog", "price": 13 }, { "name": "Chorizo", "price": 13 },
-      { "name": "Milanesa", "price": 13 }, { "name": "Filete", "price": 13 }, { "name": "Deshilachado", "price": 13 } ] },
-
-    { "category": "SÁNDWICH ROYAL", "name": "Sándwich royal", "variants": [
-      { "name": "Hamburguesa", "price": 14 }, { "name": "Chorizo", "price": 14 }, { "name": "Hot dog", "price": 14 },
-      { "name": "Deshilachado", "price": 15 }, { "name": "Filete", "price": 15 }, { "name": "Milanesa", "price": 15 } ] },
-    { "category": "SÁNDWICH ROYAL", "name": "Sándwich doble carne", "description": "2 carnes, huevo y queso", "price": 18 },
-    { "category": "SÁNDWICH ROYAL", "name": "Sándwich triple", "description": "Filete, chorizo y hamburguesa", "price": 24 },
-    { "category": "SÁNDWICH ROYAL", "name": "Sándwich a lo pobre", "description": "Hamburguesa, plátano, huevo y queso", "price": 18 },
-    { "category": "SÁNDWICH ROYAL", "name": "Sándwich mixto", "description": "Hamburguesa, hot dog, huevo y queso", "price": 17 },
-
-    { "category": "BROSTER", "name": "Pecho broaster", "description": "Precio estimado", "price": 22 },
-    { "category": "BROSTER", "name": "Encuentro broaster", "description": "Precio estimado", "price": 22 },
-    { "category": "BROSTER", "name": "Alitas", "description": "Precio estimado", "variants": [
-      { "name": "BBQ", "price": 19 }, { "name": "Acevichadas", "price": 19 }, { "name": "Broaster", "price": 19 } ] },
-
-    { "category": "SALCHIPAPA", "name": "Salchipapa", "variants": [
-      { "name": "Simple", "price": 18 }, { "name": "Royal", "price": 20 },
-      { "name": "Especial (chorizo, huevo, queso)", "price": 23 },
-      { "name": "Súper (hamb + chori + huevo y queso)", "price": 28 } ] },
-
-    { "category": "TACOS", "name": "Taco", "variants": [
-      { "name": "Deshilachado", "price": 17 }, { "name": "Filete", "price": 17 },
-      { "name": "Hamburguesa de carne", "price": 16 }, { "name": "Chorizo", "price": 16 } ] },
-    { "category": "TACOS", "name": "Taco mixto", "description": "Hamburguesa, chorizo y hot dog", "price": 21 },
-    { "category": "TACOS", "name": "Taco triple", "description": "Hamburguesa, chorizo y filete", "price": 24 },
-
-    { "category": "ENCHILADAS", "name": "Enchilada", "variants": [
-      { "name": "Deshilachado", "price": 16 }, { "name": "Filete", "price": 16 },
-      { "name": "Hamburguesa", "price": 15 }, { "name": "Chorizo", "price": 15 } ] },
-    { "category": "ENCHILADAS", "name": "Enchilada mixta", "description": "Hamburguesa, chorizo y hot dog", "price": 21 },
-    { "category": "ENCHILADAS", "name": "Enchilada triple", "description": "Hamburguesa, chorizo y filete", "price": 24 },
-
-    { "category": "BEBIDAS", "name": "Gaseosa", "description": "Agregado para la demo", "variants": [
-      { "name": "Personal", "price": 3 }, { "name": "1 L", "price": 7 }, { "name": "1½ L", "price": 9 } ] },
-    { "category": "BEBIDAS", "name": "Chicha morada", "description": "Agregado para la demo", "variants": [
-      { "name": "Vaso", "price": 4 }, { "name": "Jarra", "price": 12 } ] },
-    { "category": "BEBIDAS", "name": "Agua", "description": "Agregado para la demo", "price": 3 }
+    {
+      "category": "SÁNDWICH SIMPLE",
+      "name": "Sándwich simple",
+      "variants": [
+        {
+          "name": "Hamburguesa",
+          "price": 13
+        },
+        {
+          "name": "Hot dog",
+          "price": 13
+        },
+        {
+          "name": "Chorizo",
+          "price": 13
+        },
+        {
+          "name": "Milanesa",
+          "price": 13
+        },
+        {
+          "name": "Filete",
+          "price": 13
+        },
+        {
+          "name": "Deshilachado",
+          "price": 13
+        }
+      ],
+      "allowsCremas": true
+    },
+    {
+      "category": "SÁNDWICH ROYAL",
+      "name": "Sándwich royal",
+      "variants": [
+        {
+          "name": "Hamburguesa",
+          "price": 14
+        },
+        {
+          "name": "Chorizo",
+          "price": 14
+        },
+        {
+          "name": "Hot dog",
+          "price": 14
+        },
+        {
+          "name": "Deshilachado",
+          "price": 15
+        },
+        {
+          "name": "Filete",
+          "price": 15
+        },
+        {
+          "name": "Milanesa",
+          "price": 15
+        }
+      ],
+      "allowsCremas": true
+    },
+    {
+      "category": "SÁNDWICH ROYAL",
+      "name": "Sándwich doble carne",
+      "description": "2 carnes, huevo y queso",
+      "price": 18,
+      "allowsCremas": true
+    },
+    {
+      "category": "SÁNDWICH ROYAL",
+      "name": "Sándwich triple",
+      "description": "Filete, chorizo y hamburguesa",
+      "price": 24,
+      "allowsCremas": true
+    },
+    {
+      "category": "SÁNDWICH ROYAL",
+      "name": "Sándwich a lo pobre",
+      "description": "Hamburguesa, plátano, huevo y queso",
+      "price": 18,
+      "allowsCremas": true
+    },
+    {
+      "category": "SÁNDWICH ROYAL",
+      "name": "Sándwich mixto",
+      "description": "Hamburguesa, hot dog, huevo y queso",
+      "price": 17,
+      "allowsCremas": true
+    },
+    {
+      "category": "BROSTER",
+      "name": "Pecho broaster",
+      "description": "Precio estimado",
+      "price": 22,
+      "allowsCremas": true
+    },
+    {
+      "category": "BROSTER",
+      "name": "Encuentro broaster",
+      "description": "Precio estimado",
+      "price": 22,
+      "allowsCremas": true
+    },
+    {
+      "category": "BROSTER",
+      "name": "Alitas",
+      "description": "Precio estimado",
+      "variants": [
+        {
+          "name": "BBQ",
+          "price": 19
+        },
+        {
+          "name": "Acevichadas",
+          "price": 19
+        },
+        {
+          "name": "Broaster",
+          "price": 19
+        }
+      ],
+      "allowsCremas": true
+    },
+    {
+      "category": "SALCHIPAPA",
+      "name": "Salchipapa",
+      "variants": [
+        {
+          "name": "Simple",
+          "price": 18
+        },
+        {
+          "name": "Royal",
+          "price": 20
+        },
+        {
+          "name": "Especial (chorizo, huevo, queso)",
+          "price": 23
+        },
+        {
+          "name": "Súper (hamb + chori + huevo y queso)",
+          "price": 28
+        }
+      ],
+      "allowsCremas": true
+    },
+    {
+      "category": "TACOS",
+      "name": "Taco",
+      "variants": [
+        {
+          "name": "Deshilachado",
+          "price": 17
+        },
+        {
+          "name": "Filete",
+          "price": 17
+        },
+        {
+          "name": "Hamburguesa de carne",
+          "price": 16
+        },
+        {
+          "name": "Chorizo",
+          "price": 16
+        }
+      ],
+      "allowsCremas": true
+    },
+    {
+      "category": "TACOS",
+      "name": "Taco mixto",
+      "description": "Hamburguesa, chorizo y hot dog",
+      "price": 21,
+      "allowsCremas": true
+    },
+    {
+      "category": "TACOS",
+      "name": "Taco triple",
+      "description": "Hamburguesa, chorizo y filete",
+      "price": 24,
+      "allowsCremas": true
+    },
+    {
+      "category": "ENCHILADAS",
+      "name": "Enchilada",
+      "variants": [
+        {
+          "name": "Deshilachado",
+          "price": 16
+        },
+        {
+          "name": "Filete",
+          "price": 16
+        },
+        {
+          "name": "Hamburguesa",
+          "price": 15
+        },
+        {
+          "name": "Chorizo",
+          "price": 15
+        }
+      ],
+      "allowsCremas": true
+    },
+    {
+      "category": "ENCHILADAS",
+      "name": "Enchilada mixta",
+      "description": "Hamburguesa, chorizo y hot dog",
+      "price": 21,
+      "allowsCremas": true
+    },
+    {
+      "category": "ENCHILADAS",
+      "name": "Enchilada triple",
+      "description": "Hamburguesa, chorizo y filete",
+      "price": 24,
+      "allowsCremas": true
+    },
+    {
+      "category": "BEBIDAS",
+      "name": "Gaseosa",
+      "description": "Agregado para la demo",
+      "variants": [
+        {
+          "name": "Personal",
+          "price": 3
+        },
+        {
+          "name": "1 L",
+          "price": 7
+        },
+        {
+          "name": "1½ L",
+          "price": 9
+        }
+      ]
+    },
+    {
+      "category": "BEBIDAS",
+      "name": "Chicha morada",
+      "description": "Agregado para la demo",
+      "variants": [
+        {
+          "name": "Vaso",
+          "price": 4
+        },
+        {
+          "name": "Jarra",
+          "price": 12
+        }
+      ]
+    },
+    {
+      "category": "BEBIDAS",
+      "name": "Agua",
+      "description": "Agregado para la demo",
+      "price": 3
+    }
   ]
 }

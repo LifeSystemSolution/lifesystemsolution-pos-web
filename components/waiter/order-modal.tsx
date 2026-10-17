@@ -33,8 +33,13 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
     ? orders.find((o) => o.tableId === table.id && o.paymentStatus === "pending")
     : undefined
 
-  const handleAddProduct = (product: Product, variant?: ProductVariant, pizzaOptions?: { massType: PizzaMassType; flavor?: string; price: number }) => {
-    addToCart(product, 1, undefined, variant, pizzaOptions)
+  const handleAddProduct = (
+    product: Product,
+    variant?: ProductVariant,
+    pizzaOptions?: { massType: PizzaMassType; flavor?: string; price: number },
+    notes?: string
+  ) => {
+    addToCart(product, 1, notes, variant, pizzaOptions)
   }
 
   const handleSendOrder = async () => {

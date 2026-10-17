@@ -293,9 +293,11 @@ export function POSProvider({ children }: { children: ReactNode }) {
     setCart((prev) => {
       // For pizzas: use massType + flavor as part of the unique key
       // This allows same flavor in different sizes to be separate items
-      const uniqueKey = isPizza && pizzaOptions?.massType
+      // La nota inicial (p. ej. las cremas elegidas) también separa líneas: dos
+      // hamburguesas con cremas distintas no se suman en una sola.
+      const uniqueKey = (isPizza && pizzaOptions?.massType
         ? `${product.id}:${pizzaOptions.massType}:${pizzaOptions.flavor || product.name}`
-        : `${product.id}:${normalizedVariantName}`
+        : `${product.id}:${normalizedVariantName}`) + (notes ? `:${notes}` : "")
 
       // Check if item with same key already exists
       const existingIndex = prev.findIndex((item) => item.tempId === uniqueKey)

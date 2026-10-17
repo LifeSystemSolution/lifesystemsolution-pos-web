@@ -69,6 +69,8 @@ export interface Product {
   active: boolean
   image?: string
   variants?: ProductVariant[] // New: array of size variants (for non-pizza products)
+  /** Al agregarlo se pregunta qué cremas lleva (encima/aparte/sin cremas). Las gaseosas no. */
+  allowsCremas?: boolean
   
   // Pizza-specific: price map per size (ONLY for category === 'pizzas')
   priceMap?: {
@@ -474,6 +476,7 @@ export const collections = {
   comprobanteCounters: "comprobante_counters", // Correlativo interno por local (notas de venta sin API)
   stockCounts: "stock_counts", // Conteos de stock al cerrar caja (rubros con closingStockCount)
   stockItems: "stock_items", // Lista de lo que se cuenta al cerrar caja (configurada una vez por local)
+  storeSettings: "store_settings", // Ajustes por local editables desde Admin (p. ej. lista de cremas)
   clientes: "clientes", // Clientes locales por tenant/tipo/numero de documento
   tables: "tables",
   cashRegister: "cash_register",
