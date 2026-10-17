@@ -1083,19 +1083,6 @@ export default function CajaPage() {
               <span className="font-bold text-amber-600">S/ {(safeBox?.currentBalance || 0).toFixed(2)}</span>
             </div>
           )}
-          {features.closingStockCount && currentStoreId && (
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                setStockCountRegisterId(cashRegister?.id)
-                setStockCountSales(features.dailySalesTally && cashRegister ? salesTally : undefined)
-                setShowStockCount(true)
-              }}
-            >
-              Conteo de stock
-            </Button>
-          )}
           <div className="flex gap-2">
             <Button className="flex-1" variant="outline" onClick={() => setShowCashMovementModal(true)}>Movimiento de Caja</Button>
             <Button className="flex-1" variant="outline" onClick={() => setShowExpenseModal(true)}>Registrar Gasto</Button>
