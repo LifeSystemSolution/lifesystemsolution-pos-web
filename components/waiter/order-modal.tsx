@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { usePOS } from "@/contexts/pos-context"
+import { usePOS, type TakeoutTarget } from "@/contexts/pos-context"
 import type { Table, Product, ProductVariant, PizzaMassType } from "@/lib/firebase/firestore"
 import { markOrderPrintedToKitchen } from "@/lib/firebase/firestore"
 import { ProductList } from "./product-list"
@@ -14,10 +14,12 @@ import { useTicketConfig } from "@/lib/hooks/use-ticket-config"
 
 interface OrderModalProps {
   table?: Table
+  /** Para llevar: nombre del cliente y, si ya existe, el pedido ("mesa temporal"). */
+  takeout?: TakeoutTarget
   onClose: () => void
 }
 
-export function OrderModal({ table, onClose }: OrderModalProps) {
+export function OrderModal({ table, takeout, onClose }: OrderModalProps) {
   const { addToCart, createOrder, orders, cart } = usePOS()
   const { currentStore, user } = useAuth()
   const ticketConfig = useTicketConfig()
@@ -31,7 +33,10 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
   // Find existing order for this table (by tableId for consistency)
   const existingOrder = table
     ? orders.find((o) => o.tableId === table.id && o.paymentStatus === "pending")
-    : undefined
+    : takeout?.orderId
+      ? orders.find((o) => o.id === takeout.orderId && o.paymentStatus === "pending")
+      : undefined
+  const customerName = (existingOrder?.customerName || takeout?.customerName || "").trim()
 
   const handleAddProduct = (
     product: Product,
@@ -61,12 +66,13 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
     const printWindow = window.open("", "_blank")
 
     try {
-      const orderId = await createOrder(isTakeout ? "takeout" : "dine_in")
+      const orderId = await createOrder(isTakeout ? "takeout" : "dine_in", isTakeout ? takeout : undefined)
       if (orderId) {
         const kitchenOrder = {
           id: orderId,
           storeId: currentStore?.id || "",
           orderType: isTakeout ? "takeout" as const : "dine_in" as const,
+          ...(isTakeout && customerName ? { customerName } : {}),
           tableId: table?.id,
           tableNumber: table?.number,
           items: cart,
@@ -107,7 +113,7 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border bg-muted/30">
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-foreground">
-              {isTakeout ? "Pedido Para Llevar" : `Mesa ${table.number}`}
+              {isTakeout ? `Para Llevar${customerName ? `: ${customerName}` : ""}` : `Mesa ${table.number}`}
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground">
               {existingOrder ? "Agregar a pedido existente" : "Nuevo pedido"}

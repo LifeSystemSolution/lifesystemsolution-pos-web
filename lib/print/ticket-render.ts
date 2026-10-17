@@ -55,9 +55,11 @@ export function orderNumber(order: Order) {
 }
 
 function serviceLabel(order: Order) {
-  return order.orderType === "takeout" || order.tableNumber == null
-    ? "Para llevar"
-    : `Mesa ${String(order.tableNumber).padStart(2, "0")}`
+  if (order.orderType === "takeout" || order.tableNumber == null) {
+    const name = order.customerName?.trim()
+    return name ? `Para llevar: ${name}` : "Para llevar"
+  }
+  return `Mesa ${String(order.tableNumber).padStart(2, "0")}`
 }
 
 /**

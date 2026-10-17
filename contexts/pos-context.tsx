@@ -51,6 +51,12 @@ interface SalesBreakdown {
   expectedCash: number
 }
 
+/** Para llevar: nombre del cliente al crear, o el pedido existente al que se suman ítems. */
+export interface TakeoutTarget {
+  customerName?: string
+  orderId?: string
+}
+
 interface POSContextType {
   orders: Order[]
   tables: Table[]
@@ -77,7 +83,7 @@ interface POSContextType {
   clearSelectedTable: () => void
   
   // Order actions
-  createOrder: (orderType?: "dine_in" | "takeout") => Promise<string | null>
+  createOrder: (orderType?: "dine_in" | "takeout", takeout?: TakeoutTarget) => Promise<string | null>
   updateOrderStatus: (orderId: string, status: Order["status"]) => Promise<void>
   processPayment: (
     orderId: string,
@@ -387,7 +393,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Order actions
-  const createOrder = useCallback(async (orderType: "dine_in" | "takeout" = "dine_in"): Promise<string | null> => {
+  const createOrder = useCallback(async (orderType: "dine_in" | "takeout" = "dine_in", takeout?: TakeoutTarget): Promise<string | null> => {
     if (!currentStoreId || !cart || cart.length === 0 || !user) {
       return null
     }
@@ -420,12 +426,19 @@ export function POSProvider({ children }: { children: ReactNode }) {
       const total = getCartTotal()
 
       if (orderType === "takeout") {
+        // Pedido para llevar que ya existe ("mesa temporal"): se le suman ítems.
+        if (takeout?.orderId) {
+          await addItemsToOrder(takeout.orderId, orderItems, total)
+          clearCart()
+          return takeout.orderId
+        }
         const orderId = await createTakeoutOrderTransaction(
           currentStoreId,
           orderItems,
           total,
           user.id!,
-          user.name
+          user.name,
+          takeout?.customerName
         )
         clearCart()
         return orderId

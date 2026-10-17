@@ -64,6 +64,7 @@ import FacturacionService, { ClienteVarios } from "@/lib/services/facturacion-se
 import { useDocumentLookup } from "@/lib/hooks/use-document-lookup"
 import type { ClienteLocal } from "@/lib/services/clientes-service"
 import type { TipoComprobante, ClienteComprobante } from "@/lib/models/comprobante"
+import { orderPlaceLabel } from "@/lib/business/order-label"
 
 export default function CajaPage() {
   const { 
@@ -734,7 +735,7 @@ export default function CajaPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xl font-bold">
-                      {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
+                      {orderPlaceLabel(order)}
                     </span>
                     <span className="text-xl font-bold text-primary">
                       S/ {order.total.toFixed(2)}
@@ -768,7 +769,7 @@ export default function CajaPage() {
                       {selectedOrder.orderType === "takeout" ? "Pedido" : "Mesa"}
                     </span>
                     <span className="font-bold text-xl">
-                      {selectedOrder.orderType === "takeout" ? "Para Llevar" : selectedOrder.tableNumber}
+                      {selectedOrder.orderType === "takeout" ? orderPlaceLabel(selectedOrder) : selectedOrder.tableNumber}
                     </span>
                   </div>
                   
@@ -1486,7 +1487,7 @@ export default function CajaPage() {
               <div className="border-t border-dashed border-border py-3 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>{lastProcessedOrder.orderType === "takeout" ? "Pedido" : "Mesa"}</span>
-                  <span>{lastProcessedOrder.orderType === "takeout" ? "Para Llevar" : lastProcessedOrder.tableNumber}</span>
+                  <span>{lastProcessedOrder.orderType === "takeout" ? orderPlaceLabel(lastProcessedOrder) : lastProcessedOrder.tableNumber}</span>
                 </div>
                 {lastProcessedOrder.items.map((item, index) => (
                   <div key={index} className="flex justify-between text-sm">

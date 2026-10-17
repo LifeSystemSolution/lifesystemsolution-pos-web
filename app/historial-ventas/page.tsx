@@ -40,6 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { orderPlaceLabel } from "@/lib/business/order-label"
 
 export default function SalesHistoryPage() {
   const { currentStoreId, isAdmin, isSuperAdmin, isRestoring } = useAuth()
@@ -163,7 +164,7 @@ export default function SalesHistoryPage() {
       "Usuario",
     ]
     const rows = filteredOrders.map((order) => [
-      order.orderType === "takeout" ? "Para Llevar" : order.tableNumber,
+      order.orderType === "takeout" ? orderPlaceLabel(order) : order.tableNumber,
       toPeruDate(order.createdAt).toLocaleDateString("es-PE"),
       toPeruDate(order.createdAt).toLocaleTimeString("es-PE"),
       order.total.toFixed(2),
@@ -386,7 +387,7 @@ export default function SalesHistoryPage() {
                   {filteredOrders.map((order) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">
-                        {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
+                        {orderPlaceLabel(order)}
                       </TableCell>
                       <TableCell className="text-sm">
                         {toPeruDate(order.createdAt).toLocaleString("es-PE")}

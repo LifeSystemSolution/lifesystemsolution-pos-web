@@ -28,6 +28,7 @@ import { where } from "@/lib/local/firebase-shim/firestore"
 import { onSnapshot, collection, query } from "@/lib/local/firebase-shim/firestore"
 import { db } from "@/lib/local/db-placeholder"
 import { toPeruDate } from "@/lib/utils"
+import { orderPlaceLabel } from "@/lib/business/order-label"
 
 interface ClosureSalesModalProps {
   isOpen: boolean
@@ -209,7 +210,7 @@ export function ClosureSalesModal({ isOpen, onClose, cashClosure }: ClosureSales
                             })}
                           </td>
                           <td className="py-3 px-3 font-medium">
-                            {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
+                            {orderPlaceLabel(order)}
                           </td>
                           <td className={cn(
                             "py-3 px-3 font-medium",
@@ -315,7 +316,7 @@ export function ClosureSalesModal({ isOpen, onClose, cashClosure }: ClosureSales
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
-                Detalle de Venta - {selectedOrder.orderType === "takeout" ? "Para Llevar" : `Mesa ${selectedOrder.tableNumber}`}
+                Detalle de Venta - {orderPlaceLabel(selectedOrder)}
               </DialogTitle>
               <DialogDescription>
                 Información completa del pedido incluyendo items y detalles de pago

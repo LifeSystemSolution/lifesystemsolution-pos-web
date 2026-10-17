@@ -9,6 +9,7 @@ import { cn, toPeruDate } from "@/lib/utils"
 import { Clock, ChefHat, CheckCircle, Printer } from "lucide-react"
 import { renderKitchenHTML, printHTML } from "@/lib/print/ticket-render"
 import { useTicketConfig } from "@/lib/hooks/use-ticket-config"
+import { orderPlaceLabel } from "@/lib/business/order-label"
 
 // Tiempo estimado de preparación: pasado esto, un pedido "Preparando" pasa
 // solo a "Listo" sin que nadie tenga que tocar la pantalla — ver
@@ -305,7 +306,7 @@ export default function CocinaPage() {
                     {getStatusIcon(status)}
                     <div>
                       <p className="font-bold text-sm sm:text-base">
-                        {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
+                        {orderPlaceLabel(order)}
                       </p>
                       <p className="text-xs opacity-80">{getTimeElapsed(order.createdAt)}</p>
                     </div>

@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils"
 import { useReceiptReprint } from "@/lib/hooks/use-receipt-reprint"
 import { deleteDoc, doc } from "@/lib/local/firebase-shim/firestore"
 import { db } from "@/lib/local/db-placeholder"
+import { orderPlaceLabel } from "@/lib/business/order-label"
 
 interface DailySalesProps {
   orders: Order[]
@@ -74,7 +75,7 @@ export function DailySales({ orders }: DailySalesProps) {
       return
     }
     
-    const orderLabel = order.orderType === "takeout" ? "para llevar" : `de la mesa ${order.tableNumber}`
+    const orderLabel = order.orderType === "takeout" ? `para llevar${order.customerName ? ` (${order.customerName})` : ""}` : `de la mesa ${order.tableNumber}`
     if (!window.confirm(`¿Estás seguro de que deseas eliminar la venta ${orderLabel}?`)) {
       return
     }
@@ -178,7 +179,7 @@ export function DailySales({ orders }: DailySalesProps) {
                     className="border-b border-border hover:bg-muted/50 transition-colors"
                   >
                     <td className="py-3 px-2 font-medium">
-                      {order.orderType === "takeout" ? "Para Llevar" : `Mesa ${order.tableNumber}`}
+                      {orderPlaceLabel(order)}
                     </td>
                     <td className="py-3 px-2 text-muted-foreground flex items-center gap-1">
                       <Clock className="h-3 w-3" />
@@ -239,7 +240,7 @@ export function DailySales({ orders }: DailySalesProps) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Detalle de Venta - {selectedOrder?.orderType === "takeout" ? "Para Llevar" : `Mesa ${selectedOrder?.tableNumber}`}
+              Detalle de Venta - {selectedOrder ? orderPlaceLabel(selectedOrder) : ""}
             </DialogTitle>
             <DialogDescription>
               Información completa del pedido y detalles de pago

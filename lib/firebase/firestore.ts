@@ -168,6 +168,8 @@ export interface Order {
   tableId?: string // Optional for takeout
   tableNumber?: number // Optional for takeout
   orderType: "dine_in" | "takeout"
+  /** Para llevar: nombre del cliente (la "mesa temporal" del mesero). */
+  customerName?: string
   items: OrderItem[] // Legacy/active embedded items used by current POS screens
   total: number
   status: "open" | "preparing" | "ready" | "delivered" | "paid" | "cancelled"
@@ -2008,13 +2010,15 @@ export async function createTakeoutOrderTransaction(
   items: OrderItem[],
   total: number,
   userId: string,
-  userName: string
+  userName: string,
+  customerName?: string
 ): Promise<string> {
   return runTransaction(db, async (transaction) => {
     const orderRef = doc(collection(db, collections.orders))
     const orderData = {
       storeId,
       orderType: "takeout" as const,
+      ...(customerName?.trim() ? { customerName: customerName.trim() } : {}),
       items: cleanItems(items),
       total,
       status: "open" as const,

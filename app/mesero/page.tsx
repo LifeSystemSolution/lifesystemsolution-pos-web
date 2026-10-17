@@ -1,20 +1,24 @@
 "use client"
 
-import { useState } from "react"
-import { usePOS } from "@/contexts/pos-context"
+import { useMemo, useState } from "react"
+import { usePOS, type TakeoutTarget } from "@/contexts/pos-context"
 import { TableGrid } from "@/components/waiter/table-grid"
 import { ProductList } from "@/components/waiter/product-list"
 import { Cart } from "@/components/waiter/cart"
 import { OrderModal } from "@/components/waiter/order-modal"
+import { TakeoutTables, TakeoutNameDialog, pendingTakeoutOrders } from "@/components/waiter/takeout-tables"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
 import { ShoppingBag } from "lucide-react"
 import type { Table } from "@/lib/firebase/firestore"
 
 export default function MeseroPage() {
-  const { tables, isLoading, selectedTable, selectTable, clearSelectedTable, readyOrders } = usePOS()
+  const { tables, orders, isLoading, selectedTable, selectTable, clearSelectedTable, readyOrders } = usePOS()
   const [showOrderModal, setShowOrderModal] = useState(false)
-  const [showTakeoutModal, setShowTakeoutModal] = useState(false)
+  // Pedido para llevar abierto en el modal: nuevo (con nombre) o una "mesa temporal" existente.
+  const [takeout, setTakeout] = useState<TakeoutTarget | null>(null)
+  const [askName, setAskName] = useState(false)
+  const takeoutOrders = useMemo(() => pendingTakeoutOrders(orders), [orders])
 
   const handleTableSelect = (table: Table) => {
     const status = table.status?.trim().toLowerCase()
@@ -34,7 +38,7 @@ export default function MeseroPage() {
   }
 
   const handleCloseTakeoutModal = () => {
-    setShowTakeoutModal(false)
+    setTakeout(null)
     clearSelectedTable()
   }
 
@@ -67,11 +71,18 @@ export default function MeseroPage() {
             <span className="text-muted-foreground">Reservada</span>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowTakeoutModal(true)}>
+        <Button variant="outline" size="sm" onClick={() => setAskName(true)}>
           <ShoppingBag className="h-4 w-4 mr-2" />
           Pedido para Llevar
         </Button>
       </div>
+
+      {/* Mesas temporales: pedidos para llevar sin cobrar */}
+      <TakeoutTables
+        orders={takeoutOrders}
+        readyOrders={readyOrders}
+        onSelect={(order) => setTakeout({ orderId: order.id, customerName: order.customerName })}
+      />
 
       {/* Tables Grid */}
       <TableGrid tables={tables} onTableSelect={handleTableSelect} readyOrders={readyOrders} />
@@ -82,8 +93,16 @@ export default function MeseroPage() {
       )}
 
       {/* Takeout Order Modal */}
-      {showTakeoutModal && (
-        <OrderModal onClose={handleCloseTakeoutModal} />
+      <TakeoutNameDialog
+        open={askName}
+        onCancel={() => setAskName(false)}
+        onConfirm={(customerName) => {
+          setAskName(false)
+          setTakeout({ customerName })
+        }}
+      />
+      {takeout && (
+        <OrderModal takeout={takeout} onClose={handleCloseTakeoutModal} />
       )}
     </div>
   )
