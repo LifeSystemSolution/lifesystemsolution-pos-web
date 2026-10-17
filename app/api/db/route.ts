@@ -178,9 +178,19 @@ export async function POST(req: NextRequest) {
           // con tx.get() cambió entre esa lectura y este commit, se aborta
           // con 409 y el shim reintenta desde cero (igual que el SDK real de
           // Firestore). Ver lib/local/firebase-shim/firestore.ts.
-          const expectedVersions: Array<{ collection: string; id: string; version: number | null }> =
-            body.expectedVersions || []
+          const expectedVersions: Array<{ collection: string; id: string; version: number | null }> = [
+            ...(body.expectedVersions || []),
+          ].sort((a, b) => `${a.collection}/${a.id}`.localeCompare(`${b.collection}/${b.id}`))
           for (const ev of expectedVersions) {
+            // FOR UPDATE no bloquea filas que todavía NO existen: dos transacciones
+            // que crean el mismo doc a la vez (p. ej. el primer correlativo de notas
+            // de venta) veían ambas "no existe" y las dos confirmaban (número
+            // repetido). El lock consultivo por doc las pone en fila: la segunda
+            // espera el COMMIT de la primera, ve el doc ya creado y recibe 409
+            // (el shim reintenta). Orden fijo de locks (sort de arriba) = sin deadlocks.
+            await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+              `${companyId}/${ev.collection}/${ev.id}`,
+            ])
             const { rows } = await client.query(
               `SELECT extract(epoch from updated_at) AS v FROM documents
                WHERE collection = $1 AND id = $2 AND company_id = $3 FOR UPDATE`,

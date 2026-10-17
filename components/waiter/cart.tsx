@@ -1,7 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { usePOS } from "@/contexts/pos-context"
+import { useAuth } from "@/contexts/auth-context"
+import { useStoreStock, quantityByInventory, remainingFor } from "@/lib/hooks/use-store-stock"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Minus, Plus, Trash2, MessageSquarePlus } from "lucide-react"
@@ -15,6 +17,14 @@ interface CartProps {
 export function Cart({ onSendOrder, isSending }: CartProps) {
   const { cart, getCartTotal, updateCartItemQuantity, updateCartItemNotes, removeFromCart, clearCart } = usePOS()
   const [editingNotesFor, setEditingNotesFor] = useState<string | null>(null)
+  const { currentStoreId } = useAuth()
+  const stock = useStoreStock(currentStoreId)
+  // Todo lo del carrito que comparte inventario (p. ej. dos sabores de pizza
+  // del mismo tamaño usan la misma masa) cuenta junto.
+  const inCart = useMemo(
+    () => (currentStoreId ? quantityByInventory(currentStoreId, cart) : new Map<string, number>()),
+    [cart, currentStoreId]
+  )
 
   if (cart.length === 0) {
     return (
@@ -46,7 +56,11 @@ export function Cart({ onSendOrder, isSending }: CartProps) {
     <div className="flex flex-col h-full">
       {/* Cart Items */}
       <div className="flex-1 overflow-y-auto space-y-2">
-        {cart.map((item) => (
+        {cart.map((item) => {
+          // Cuántas unidades más se pueden sumar (null = stock aún no cargó).
+          const left = currentStoreId ? remainingFor(stock, currentStoreId, item, inCart) : null
+          const atLimit = left !== null && left <= 0
+          return (
           <div
             key={item.tempId}
             className="p-3 rounded-lg bg-muted/30 border border-border space-y-2"
@@ -61,6 +75,7 @@ export function Cart({ onSendOrder, isSending }: CartProps) {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   S/ {item.price.toFixed(2)} c/u
+                  {atLimit && <span className="ml-2 font-semibold text-destructive">Sin más stock</span>}
                 </p>
                 {item.notes && editingNotesFor !== item.tempId && (
                   <p className="text-xs text-secondary mt-1 truncate">Nota: {item.notes}</p>
@@ -82,7 +97,9 @@ export function Cart({ onSendOrder, isSending }: CartProps) {
                   variant="outline"
                   size="icon"
                   className="h-8 w-8 sm:h-7 sm:w-7"
-                  onClick={() => updateCartItemQuantity(item.tempId, item.quantity + 1)}
+                  onClick={() => !atLimit && updateCartItemQuantity(item.tempId, item.quantity + 1)}
+                  disabled={atLimit}
+                  title={atLimit ? "No queda más stock de este producto" : undefined}
                 >
                   <Plus className="h-3 w-3" />
                 </Button>
@@ -130,7 +147,8 @@ export function Cart({ onSendOrder, isSending }: CartProps) {
               />
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Cart Footer */}

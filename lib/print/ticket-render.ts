@@ -237,7 +237,7 @@ function thermalReceipt(order: Order, store: StoreLike | undefined, cfg: TicketC
     head.details.map((l) => `<div class="biz-d">${esc(l)}</div>`).join(""),
     r.title.trim() || r.showOrderNumber
       ? `<div class="doc">${r.title.trim() ? `<div class="doc-t">${esc(r.title)}</div>` : ""}${
-          r.showOrderNumber ? `<div class="doc-n">N° ${esc(orderNumber(order))}</div>` : ""
+          r.showOrderNumber ? `<div class="doc-n">N° ${esc(order.documentNumber || orderNumber(order))}</div>` : ""
         }</div>`
       : "",
     kv.length ? `<table class="kv">${kv.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>` : "",
@@ -330,7 +330,7 @@ function pageReceipt(order: Order, store: StoreLike | undefined, cfg: TicketConf
     `</div></div>`,
     r.title.trim() || r.showOrderNumber
       ? `<div class="box">${r.title.trim() ? `<div class="title">${esc(r.title)}</div>` : ""}${
-          r.showOrderNumber ? `<div class="num">N° ${esc(orderNumber(order))}</div>` : ""
+          r.showOrderNumber ? `<div class="num">N° ${esc(order.documentNumber || orderNumber(order))}</div>` : ""
         }</div>`
       : "",
     `</div>`,

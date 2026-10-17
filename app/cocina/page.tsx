@@ -151,10 +151,13 @@ export default function CocinaPage() {
   const handlePrintComanda = (order: Order) => {
     printHTML(renderKitchenHTML(order, currentStore || undefined, ticketConfig))
     // Imprimir la comanda ES la señal de "empecé a preparar" — reemplaza el
-    // click manual de "Preparar" (ver docs/BUSINESS_RULES.md). Solo aplica
-    // al imprimir desde la columna de Pendientes; reimprimir una comanda ya
-    // en preparación o lista no debe tocar su estado.
-    if (order.status === "open" && order.id) {
+    // click manual de "Preparar" (ver docs/BUSINESS_RULES.md). Se decide por
+    // los ítems, no por el estado del pedido: si a una mesa que ya estaba en
+    // preparación le agregaron productos, el pedido sigue "preparing" pero los
+    // nuevos están pendientes, y antes se quedaban en Pendientes al imprimir.
+    // Reimprimir una comanda ya enviada no toca nada.
+    const hasPending = order.items.some((item) => !item.cancelled && !item.sentAt)
+    if (hasPending && order.id) {
       handleStatusChange(order.id, "preparing")
     }
   }

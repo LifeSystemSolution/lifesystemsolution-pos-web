@@ -187,6 +187,8 @@ export interface Order {
   deliveredBy?: string // userId de quien retiró el pedido de cocina (normalmente el mesero)
   deliveredByName?: string
   totalAmount?: number
+  /** N° del comprobante emitido al cobrar (solo en memoria, para imprimir el ticket). */
+  documentNumber?: string
 }
 
 // Audit log for order compliance
@@ -468,6 +470,7 @@ export const collections = {
   orderItems: "order_items", // NEW: Separated from orders
   orderAuditLog: "order_audit_log", // NEW: Order compliance audit trail
   comprobantes: "comprobantes", // Cache local de comprobantes emitidos via API SUNAT
+  comprobanteCounters: "comprobante_counters", // Correlativo interno por local (notas de venta sin API)
   clientes: "clientes", // Clientes locales por tenant/tipo/numero de documento
   tables: "tables",
   cashRegister: "cash_register",
@@ -1415,7 +1418,11 @@ async function deductInventoryInTransaction(
     }
 
     if (currentStock < deduction.quantity) {
-      throw new Error(`Stock insuficiente para ${deduction.item.productName}. Disponible: ${currentStock}`)
+      throw new Error(
+        currentStock <= 0
+          ? `Ya no queda ${deduction.item.productName}: otra mesa pudo haber pedido lo último. Quítalo o cámbialo y vuelve a enviar.`
+          : `Solo quedan ${currentStock} de ${deduction.item.productName} (pediste ${deduction.quantity}). Ajusta la cantidad y vuelve a enviar.`
+      )
     }
 
     const newStock = currentStock - deduction.quantity
@@ -2139,6 +2146,46 @@ export async function sendItemsToKitchen(
       items: updatedItems,
       updatedAt: serverTimestamp(),
     })
+  })
+}
+
+/**
+ * "Se imprimió la comanda": marca como enviados a cocina todos los ítems que
+ * aún no lo estaban (y confirma los anulados pendientes) y pasa el pedido a
+ * "preparing". Es lo mismo que hace cocina al pulsar "Preparar", en una sola
+ * transacción. Si no había nada pendiente, no toca nada.
+ */
+export async function markOrderPrintedToKitchen(orderId: string): Promise<boolean> {
+  return runTransaction(db, async (transaction) => {
+    const orderRef = doc(db, collections.orders, orderId)
+    const orderDoc = await transaction.get(orderRef)
+    if (!orderDoc.exists()) throw new Error("Pedido no encontrado")
+
+    const orderData = orderDoc.data() as Order
+    const now = new Date() // serverTimestamp no se permite dentro de arrays
+    let sentNew = false
+    let changed = false
+    const updatedItems = (orderData.items || []).map((item) => {
+      const pendingSend = !item.cancelled && !item.sentAt
+      const pendingCancelAck = item.cancelled && !item.cancelAcknowledgedAt
+      if (!pendingSend && !pendingCancelAck) return item
+      changed = true
+      if (pendingSend) sentNew = true
+      return cleanUndefined({
+        ...item,
+        sentAt: item.sentAt || now,
+        sentCount: (item.sentCount || 0) + 1,
+        cancelAcknowledgedAt: item.cancelled ? item.cancelAcknowledgedAt || now : item.cancelAcknowledgedAt,
+      } as unknown as Record<string, unknown>) as unknown as OrderItem
+    })
+    if (!changed) return false
+
+    transaction.update(orderRef, {
+      items: updatedItems,
+      ...(sentNew ? { status: "preparing" } : {}),
+      updatedAt: serverTimestamp(),
+    })
+    return true
   })
 }
 

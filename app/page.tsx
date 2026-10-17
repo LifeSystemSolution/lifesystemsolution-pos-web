@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Building2, Shield, MapPin, ArrowLeft, LogIn } from "lucide-react"
+import { Building2, Shield, MapPin, ArrowLeft, LogIn, LogOut } from "lucide-react"
 import Image from "next/image"
 
 export default function LoginPage() {
@@ -29,7 +29,9 @@ export default function LoginPage() {
     user,
     needsStoreSelection,
     availableStores,
-    store
+    store,
+    firebaseUser,
+    firebaseLogout,
   } = useAuth()
   
   const [stores, setStores] = useState<Store[]>([])
@@ -498,6 +500,33 @@ export default function LoginPage() {
                 "Ingresar"
               )}
             </Button>
+
+            {/* Volver al login con correo: por si se entró con la cuenta equivocada.
+                Pide confirmar porque, para volver, hace falta la contraseña de la cuenta. */}
+            <div className="flex flex-col items-center gap-1 pt-1 border-t border-border/50">
+              {firebaseUser?.email && (
+                <p className="text-xs text-muted-foreground pt-3">
+                  Cuenta: <span className="font-medium text-foreground">{firebaseUser.email}</span>
+                </p>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 text-muted-foreground hover:text-destructive"
+                onClick={() => {
+                  if (
+                    confirm(
+                      "¿Salir de esta cuenta?\n\nVolverás a la pantalla de correo y contraseña. Para entrar de nuevo necesitarás la contraseña de la cuenta."
+                    )
+                  ) {
+                    void firebaseLogout()
+                  }
+                }}
+              >
+                <LogOut className="h-4 w-4" />
+                Salir / cambiar de cuenta
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

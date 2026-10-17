@@ -6,7 +6,8 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
-import { Building2, Users2, Wallet, LogOut, KeyRound } from "lucide-react"
+import { Building2, Users2, Wallet, LogOut, KeyRound, Sun, Moon } from "lucide-react"
+import { useTheme } from "next-themes"
 import { ChangePasswordDialog } from "@/components/platform/change-password-dialog"
 
 // Panel de plataforma: independiente del panel /admin de cada empresa. No
@@ -21,6 +22,8 @@ export default function PlataformaLayout({
   const { firebaseUser, isRestoring, isPlatformOwner, firebaseLogout } = useAuth()
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
+  const { resolvedTheme, setTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
 
   useEffect(() => {
     if (isRestoring) return
@@ -64,6 +67,16 @@ export default function PlataformaLayout({
                 <span className="hidden sm:inline">Planes</span>
               </Button>
             </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+              title={isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              <span className="hidden sm:inline">{isDark ? "Claro" : "Oscuro"}</span>
+            </Button>
             <Button variant="ghost" size="sm" className="gap-2" onClick={() => setShowPassword(true)}>
               <KeyRound className="h-4 w-4" />
               <span className="hidden sm:inline">Contraseña</span>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { usePOS } from "@/contexts/pos-context"
 import { useAuth } from "@/contexts/auth-context"
 import type { Product, ProductVariant, PizzaMassType } from "@/lib/firebase/firestore"
@@ -9,8 +9,8 @@ import {
   PIZZA_SIZE_LABELS,
   PIZZA_INVENTORY_CODES,
   getInventoryItemId,
-  subscribeToStoreInventory,
 } from "@/lib/firebase/firestore"
+import { useStoreStock, quantityByInventory } from "@/lib/hooks/use-store-stock"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -43,25 +43,14 @@ export function ProductList({ onAddProduct }: ProductListProps) {
   // Stock en vivo del local. null = todavía no cargó (no se marca nada como
   // agotado mientras tanto). Crear un pedido sin stock falla en el servidor
   // ("Stock insuficiente"), así que acá se avisa y se bloquea antes.
-  const [stock, setStock] = useState<Map<string, number> | null>(null)
-  useEffect(() => {
-    if (!currentStoreId) return
-    return subscribeToStoreInventory(currentStoreId, (items) => {
-      setStock(new Map(items.map((i) => [i.id!, Number(i.currentStock) || 0])))
-    })
-  }, [currentStoreId])
+  const stock = useStoreStock(currentStoreId)
 
   // Lo que ya está en el carrito también cuenta: si quedan 2 y hay 2 en el
   // carrito, no se puede agregar un tercero.
-  const inCart = useMemo(() => {
-    const m = new Map<string, number>()
-    if (!currentStoreId) return m
-    for (const item of cart) {
-      const id = getInventoryItemId(currentStoreId, item)
-      m.set(id, (m.get(id) || 0) + item.quantity)
-    }
-    return m
-  }, [cart, currentStoreId])
+  const inCart = useMemo(
+    () => (currentStoreId ? quantityByInventory(currentStoreId, cart) : new Map<string, number>()),
+    [cart, currentStoreId]
+  )
 
   /** Unidades disponibles para agregar; null si aún no se sabe. */
   const available = (invId: string): number | null => {

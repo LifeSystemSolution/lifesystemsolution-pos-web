@@ -1,7 +1,7 @@
 import type { Order, OrderItem } from "@/lib/firebase/firestore"
 import { addDocument, getDocuments, updateDocument, collections } from "@/lib/firebase/firestore"
 import { db } from "@/lib/local/db-placeholder"
-import { where, orderBy, query, collection, onSnapshot } from "@/lib/local/firebase-shim/firestore"
+import { where, orderBy, query, collection, onSnapshot, doc, runTransaction, serverTimestamp } from "@/lib/local/firebase-shim/firestore"
 import type {
   ClienteComprobante,
   ComprobanteRegistro,
@@ -43,6 +43,66 @@ export const ClienteVarios: ClienteComprobante = {
   razonSocial: "CLIENTE VARIOS",
 }
 
+/** Serie interna de las notas de venta registradas en el sistema (sin API/SUNAT). */
+const SERIE_NOTA_VENTA = "NV01"
+
+/**
+ * Registra la nota de venta en el propio sistema, con correlativo por local
+ * (NV01-00000001, ...). La nota de venta es un documento interno: no necesita
+ * SUNAT. Se usa cuando la API de facturación no está configurada o falla —
+ * antes, en ese caso, la nota de venta no quedaba guardada en ningún lado.
+ * Contador y comprobante van en la misma transacción: dos cajas cobrando a la
+ * vez nunca obtienen el mismo número (el shim reintenta ante conflicto).
+ */
+async function registrarNotaVentaLocal(
+  order: OrderConItems,
+  cliente: ClienteComprobante,
+  userId?: string,
+  userName?: string
+): Promise<ComprobanteResultado> {
+  const counterRef = doc(db, collections.comprobanteCounters, `${order.storeId}_NOTA_VENTA`)
+  const comprobanteRef = doc(collection(db, collections.comprobantes))
+  const igv = Number((order.total - order.total / 1.18).toFixed(2))
+  const subtotal = Number((order.total - igv).toFixed(2))
+
+  const correlativo = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(counterRef)
+    const next = (snap.exists() ? Number(snap.data()?.last) || 0 : 0) + 1
+    const numeroCompleto = `${SERIE_NOTA_VENTA}-${String(next).padStart(8, "0")}`
+    tx.set(counterRef, { storeId: order.storeId, tipo: "NOTA_VENTA", serie: SERIE_NOTA_VENTA, last: next })
+    tx.set(
+      comprobanteRef,
+      limpiarUndefined({
+        storeId: order.storeId,
+        orderId: order.id,
+        tipo: "NOTA_VENTA" as TipoComprobante,
+        cliente,
+        subtotal,
+        igv,
+        total: order.total,
+        serie: SERIE_NOTA_VENTA,
+        correlativo: next,
+        numeroCompleto,
+        sunatStatus: "interno",
+        userId,
+        userName,
+        createdAt: serverTimestamp(),
+      })
+    )
+    return next
+  })
+
+  return {
+    ok: true,
+    tipo: "NOTA_VENTA",
+    serie: SERIE_NOTA_VENTA,
+    correlativo,
+    numeroCompleto: `${SERIE_NOTA_VENTA}-${String(correlativo).padStart(8, "0")}`,
+    sunatStatus: "interno",
+    mensaje: "Nota de venta registrada en el sistema",
+  }
+}
+
 export const FacturacionService = {
   /**
    * Emite el comprobante (nota de venta, boleta o factura) llamando a la API externa
@@ -63,22 +123,30 @@ export const FacturacionService = {
       return { tipo, ok: false, mensaje: "El pedido no tiene items validos para facturar" }
     }
 
-    const res = await fetch("/api/facturacion", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tipo,
-        orderId: order.id,
-        storeId: order.storeId,
-        cliente,
-        items,
-        observacion: order.notes || undefined,
-      }),
-    })
-
-    const resultado: ComprobanteResultado = await res.json()
+    let resultado: ComprobanteResultado
+    try {
+      const res = await fetch("/api/facturacion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipo,
+          orderId: order.id,
+          storeId: order.storeId,
+          cliente,
+          items,
+          observacion: order.notes || undefined,
+        }),
+      })
+      resultado = await res.json().catch(() => ({ ok: false, tipo, mensaje: `Error ${res.status} de la API` }))
+    } catch (e) {
+      resultado = { ok: false, tipo, mensaje: e instanceof Error ? e.message : "No se pudo conectar con la API" }
+    }
 
     if (!resultado.ok) {
+      // La nota de venta es interna: si la API no está o falla, igual se registra.
+      if (tipo === "NOTA_VENTA") {
+        return registrarNotaVentaLocal(order, cliente, userId, userName)
+      }
       return resultado
     }
 

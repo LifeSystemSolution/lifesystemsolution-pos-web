@@ -39,7 +39,8 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className="font-sans antialiased min-h-screen bg-background text-foreground">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem storageKey="theme">
+        {/* Tema claro por defecto; cada equipo puede cambiarlo (se recuerda en el navegador). */}
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="theme">
           <AuthProvider>
             <SessionRestorer />
             <POSProvider>

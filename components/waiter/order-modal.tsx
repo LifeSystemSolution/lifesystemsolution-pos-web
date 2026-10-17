@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 import { usePOS } from "@/contexts/pos-context"
 import type { Table, Product, ProductVariant, PizzaMassType } from "@/lib/firebase/firestore"
+import { markOrderPrintedToKitchen } from "@/lib/firebase/firestore"
 import { ProductList } from "./product-list"
 import { Cart } from "./cart"
 import { Button } from "@/components/ui/button"
@@ -74,6 +75,11 @@ export function OrderModal({ table, onClose }: OrderModalProps) {
         }
         if (printWindow) {
           printHTML(renderKitchenHTML(kitchenOrder, currentStore || undefined, ticketConfig), printWindow)
+          // La comanda ya salió impresa: cocina la recibe directo en "Preparando".
+          // Si esto falla el pedido igual quedó creado (queda en Pendientes).
+          markOrderPrintedToKitchen(orderId).catch((err) =>
+            console.warn("[mesero] No se pudo pasar el pedido a Preparando:", err)
+          )
         }
         onClose()
       } else {

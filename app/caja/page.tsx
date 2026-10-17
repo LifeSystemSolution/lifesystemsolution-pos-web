@@ -54,6 +54,7 @@ import { RecentMovements } from "@/components/caja/recent-movements"
 import { CashMovementModal } from "@/components/caja/cash-movement-modal"
 import { renderReceiptHTML, printHTML } from "@/lib/print/ticket-render"
 import { useTicketConfig } from "@/lib/hooks/use-ticket-config"
+import { useStoreStock, remainingFor } from "@/lib/hooks/use-store-stock"
 import FacturacionService, { ClienteVarios } from "@/lib/services/facturacion-service"
 import { useDocumentLookup } from "@/lib/hooks/use-document-lookup"
 import type { ClienteLocal } from "@/lib/services/clientes-service"
@@ -72,6 +73,9 @@ export default function CajaPage() {
   } = usePOS()
   const { currentStoreId, currentStore, user } = useAuth()
   const ticketConfig = useTicketConfig()
+  // Para no dejar subir la cantidad de un pedido abierto sin stock (el
+  // servidor igual lo rechaza: así se avisa antes de intentarlo).
+  const stock = useStoreStock(currentStoreId)
   const { toast } = useToast()
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -295,6 +299,8 @@ export default function CajaPage() {
         ...selectedOrder,
         payments,
         paymentMethod: payments.length === 1 ? payments[0].method : "mixed",
+        // El ticket muestra el N° del comprobante (p. ej. NV01-00000012) si se emitió.
+        documentNumber: resultado.ok ? resultado.numeroCompleto : undefined,
       })
       setShowReceipt(true)
       setSelectedOrder(null)
@@ -746,6 +752,9 @@ export default function CajaPage() {
                     {selectedOrder.items.map((item, index) => {
                       if (item.cancelled) return null
                       const isEditable = selectedOrder.paymentStatus !== "paid"
+                      // Lo ya pedido ya está descontado del stock: subir 1 necesita al menos 1 libre.
+                      const left = currentStoreId ? remainingFor(stock, currentStoreId, item) : null
+                      const noMoreStock = left !== null && left <= 0
                       
                       return (
                         <div key={index} className="flex items-center justify-between text-sm p-2 rounded bg-card border border-border/50">
@@ -756,6 +765,9 @@ export default function CajaPage() {
                             </div>
                             <div className="text-xs text-muted-foreground">
                               S/ {item.price.toFixed(2)} c/u
+                              {isEditable && noMoreStock && (
+                                <span className="ml-2 font-semibold text-destructive">Sin más stock</span>
+                              )}
                             </div>
                           </div>
                           
@@ -781,13 +793,14 @@ export default function CajaPage() {
                               <span className="w-8 text-center font-medium text-xs">
                                 {item.quantity}x
                               </span>
-                              
+
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary"
-                                onClick={() => handleUpdateItemQuantity(index, item.quantity + 1)}
-                                disabled={isProcessing}
+                                onClick={() => !noMoreStock && handleUpdateItemQuantity(index, item.quantity + 1)}
+                                disabled={isProcessing || noMoreStock}
+                                title={noMoreStock ? "No queda más stock de este producto" : undefined}
                               >
                                 <Plus className="h-4 w-4" />
                               </Button>
