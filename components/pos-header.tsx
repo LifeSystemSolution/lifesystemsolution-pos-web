@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { User, LogOut, LayoutGrid, ChefHat, CreditCard, Settings, BarChart3, Building2, RefreshCw, Moon, Sun, Package, Receipt } from "lucide-react"
+import { User, LogOut, LayoutGrid, ChefHat, CreditCard, Settings, BarChart3, Building2, RefreshCw, Moon, Sun, Package, Receipt, ClipboardCheck } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
@@ -24,7 +24,10 @@ interface POSHeaderProps {
 export function POSHeader({ title }: POSHeaderProps) {
   const { user, store, logout, isAdmin, isSuperAdmin, isCajero, isMesero, isCocina: isCocinaRole, isPlatformOwner, changeStore } = useAuth()
   // Rubros sin pantalla de cocina (comida rápida): la cocina trabaja con la comanda impresa.
-  const { kitchenScreen } = useBusinessFeatures()
+  // Sin inventario por producto (comida rápida): /inventario es el conteo de stock.
+  const { kitchenScreen, stockControl } = useBusinessFeatures()
+  const StockIcon = stockControl ? Package : ClipboardCheck
+  const stockLabel = stockControl ? "Inventario" : "Conteo de stock"
   const isCocina = isCocinaRole && kitchenScreen
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -120,8 +123,8 @@ export function POSHeader({ title }: POSHeaderProps) {
               </Link>
               <Link href="/inventario">
                 <Button variant="ghost" size="sm" className="gap-2">
-                  <Package className="h-4 w-4" />
-                  Inventario
+                  <StockIcon className="h-4 w-4" />
+                  {stockLabel}
                 </Button>
               </Link>
               <Link href="/dashboard">
@@ -218,8 +221,8 @@ export function POSHeader({ title }: POSHeaderProps) {
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link href="/inventario" className="gap-2">
-                        <Package className="h-4 w-4" />
-                        Inventario
+                        <StockIcon className="h-4 w-4" />
+                        {stockLabel}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>

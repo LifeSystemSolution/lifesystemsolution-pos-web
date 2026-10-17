@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useAuth } from "@/contexts/auth-context"
+import { useBusinessFeatures } from "@/lib/business/client"
+import { StockCountPanel } from "@/components/inventory/stock-count-panel"
 import { subscribeToStoreInventory, updateInventoryStock, addInventoryStock, type InventoryItem, type Product, getDocuments, collections } from "@/lib/firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -19,6 +21,19 @@ interface ProductInfo {
 }
 
 export default function InventarioPage() {
+  // Rubros sin inventario por producto (comida rápida): se trabaja con el conteo de stock.
+  const { stockControl, loaded } = useBusinessFeatures()
+  if (!loaded) {
+    return (
+      <div className="flex justify-center py-12">
+        <Spinner className="h-8 w-8" />
+      </div>
+    )
+  }
+  return stockControl ? <ProductInventory /> : <StockCountPanel />
+}
+
+function ProductInventory() {
   const { store } = useAuth()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [products, setProducts] = useState<Map<string, ProductInfo>>(new Map())

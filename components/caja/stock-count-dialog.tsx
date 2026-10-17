@@ -218,7 +218,7 @@ export function StockCountDialog({ open, onOpenChange, storeId, storeName, userI
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ClipboardCheck className="h-5 w-5 text-primary" />
-            {editing ? "Lista de conteo del local" : "Conteo de stock del cierre"}
+            {editing ? "Lista de conteo del local" : sales ? "Conteo de stock del cierre" : "Conteo de stock"}
           </DialogTitle>
           <DialogDescription>
             {editing

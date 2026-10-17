@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { Spinner } from "@/components/ui/spinner"
 import { POSHeader } from "@/components/pos-header"
+import { useBusinessFeatures } from "@/lib/business/client"
 
 export default function InventarioLayout({
   children,
@@ -13,6 +14,7 @@ export default function InventarioLayout({
 }) {
   const { firebaseUser, isRestoring, user, store, isAdmin } = useAuth()
   const router = useRouter()
+  const { stockControl } = useBusinessFeatures()
 
   useEffect(() => {
     if (isRestoring) return
@@ -33,7 +35,7 @@ export default function InventarioLayout({
 
   return (
     <div className="min-h-screen bg-background">
-      <POSHeader title="Inventario" />
+      <POSHeader title={stockControl ? "Inventario" : "Conteo de stock"} />
       <main className="p-3 sm:p-4">{children}</main>
     </div>
   )

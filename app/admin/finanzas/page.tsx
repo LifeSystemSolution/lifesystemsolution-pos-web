@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import {
-  ArrowUpLeft,
-  ArrowDownRight,
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
   AlertCircle,
   Calendar,
   Clock,
@@ -27,6 +28,13 @@ import {
 } from "lucide-react"
 import { cn, toPeruDate } from "@/lib/utils"
 import { subscribeToFinancialMovements, subscribeToSafeBox } from "@/lib/firebase/firestore"
+import { boxName, describeMovement, movementAmountText, movementDirection, type MovementDirection } from "@/lib/business/movement-label"
+
+const DIRECTION_STYLE: Record<MovementDirection, { icon: typeof Clock; text: string; card: string }> = {
+  in: { icon: ArrowDownLeft, text: "text-green-600", card: "bg-green-500/10 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800" },
+  out: { icon: ArrowUpRight, text: "text-destructive", card: "bg-red-500/10 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800" },
+  move: { icon: ArrowLeftRight, text: "text-blue-600", card: "bg-blue-500/10 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800" },
+}
 
 type PeriodFilter = "today" | "week" | "month" | "all"
 type MovementTypeFilter = "all" | "entrada" | "salida" | "expense" | "deposit"
@@ -45,6 +53,8 @@ export interface FinancialMovementDisplay {
   timestamp?: Date | { toDate: () => Date } | string
   createdAt?: Date | { toDate: () => Date } | string
   source?: string
+  fromBox?: string
+  toBox?: string
 }
 
 export default function FinanzasPage() {
@@ -139,9 +149,6 @@ export default function FinanzasPage() {
     return movement.type || "unknown"
   }
 
-  const getNormalizedOrigin = (movement: FinancialMovementDisplay): string => {
-    return movement.origin || movement.source || "unknown"
-  }
 
   // Filter movements
   const filteredMovements = useMemo(() => {
@@ -181,10 +188,11 @@ export default function FinanzasPage() {
 
     // Origin filter - handle both old (source) and new (origin) formats
     if (originFilter !== "all") {
-      filtered = filtered.filter(m => {
-        const origin = getNormalizedOrigin(m)
-        return origin === originFilter
-      })
+      // Una caja "participa" si el dinero sale o entra de ella (incluye traspasos del cierre).
+      const wanted = boxName(originFilter)
+      filtered = filtered.filter(m =>
+        [m.origin, m.source, m.fromBox, m.toBox].some((box) => box && boxName(box) === wanted)
+      )
     }
 
     // User filter
@@ -213,12 +221,13 @@ export default function FinanzasPage() {
     let expenseCount = 0
 
     filteredMovements.forEach(m => {
-      const type = getNormalizedType(m)
-      if (type === "entrada" || m.type === "deposit" || m.type === "opening" || m.type === "cash_distribution") {
-        totalIncome += m.amount
+      // Los traspasos entre cajas (cierre → caja fuerte) no son ingreso ni gasto.
+      const direction = movementDirection(m)
+      if (direction === "in") {
+        totalIncome += Math.abs(m.amount)
         incomeCount++
-      } else if (type === "salida" || m.type === "expense") {
-        totalExpenses += m.amount
+      } else if (direction === "out") {
+        totalExpenses += Math.abs(m.amount)
         expenseCount++
       }
     })
@@ -264,84 +273,6 @@ export default function FinanzasPage() {
       year: "numeric",
     })
     return { date: dateStr, time }
-  }
-
-  const getMovementTypeLabel = (movement: FinancialMovementDisplay): string => {
-    const type = movement.type || "cash_movement"
-    const movementType = movement.movementType
-    const category = movement.category
-    
-    // For cash movements, use category as label
-    if (type === "cash_movement" && category) {
-      const categoryLabels: Record<string, string> = {
-        "dinero_dueno": "Dinero Dueño",
-        "fondo_sencillo": "Fondo Sencillo",
-        "reposicion": "Reposición",
-        "propina_tienda": "Propina Tienda",
-        "propina_mozo": "Propina Mozo",
-        "pago_proveedor": "Pago Proveedor",
-        "retiro_dueno": "Retiro Dueño",
-        "ajuste_arqueo": "Ajuste Arqueo",
-        "otro": "Otro"
-      }
-      return categoryLabels[category] || category
-    }
-    
-    const labels: Record<string, string> = {
-      "entrada": "Entrada",
-      "salida": "Salida",
-      "deposit": "Depósito",
-      "withdrawal": "Retiro",
-      "expense": "Gasto",
-      "opening": "Apertura",
-      "cash_distribution": "Distribución"
-    }
-    return labels[type] || type
-  }
-
-  const getMovementIcon = (movement: FinancialMovementDisplay) => {
-    const type = movement.type || "cash_movement"
-    const movementType = movement.movementType
-    
-    if (movementType === "entrada") {
-      return <ArrowDownRight className="h-5 w-5" />
-    } else if (movementType === "salida") {
-      return <ArrowUpLeft className="h-5 w-5" />
-    }
-    
-    switch (type) {
-      case "deposit":
-      case "opening":
-        return <ArrowDownRight className="h-5 w-5" />
-      case "withdrawal":
-      case "cash_distribution":
-        return <ArrowUpLeft className="h-5 w-5" />
-      case "expense":
-        return <AlertCircle className="h-5 w-5" />
-      default:
-        return <Calendar className="h-5 w-5" />
-    }
-  }
-
-  const getMovementTypeColor = (movement: FinancialMovementDisplay) => {
-    const type = movement.type || "cash_movement"
-    const movementType = movement.movementType
-    
-    if (movementType === "entrada" || type === "deposit" || type === "opening" || type === "sale") {
-      return "bg-green-500/10 dark:bg-green-950/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
-    } else if (movementType === "salida" || type === "withdrawal" || type === "cash_distribution") {
-      return "bg-blue-500/10 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800"
-    } else if (type === "expense") {
-      return "bg-red-500/10 dark:bg-red-950/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800"
-    }
-    return "bg-muted text-muted-foreground border-border"
-  }
-
-  const getOriginLabel = (movement: FinancialMovementDisplay): string => {
-    const origin = getNormalizedOrigin(movement)
-    if (origin === "caja_operativa" || origin === "cash_register") return "Caja Operativa"
-    if (origin === "caja_fuerte" || origin === "safe_box") return "Caja Fuerte"
-    return origin
   }
 
   return (
@@ -428,26 +359,20 @@ export default function FinanzasPage() {
             <CardContent>
               <div className="space-y-2">
                 {cashSummary.todayMovements.map((movement, idx) => {
-                  const type = movement.type || "cash_movement"
-                  const movementType = movement.movementType
-                  const isIncome = movementType === "entrada" || type === "deposit"
-                  
+                  const d = describeMovement(movement)
+                  const { icon: Icon, text } = DIRECTION_STYLE[d.direction]
                   return (
                     <div key={idx} className="flex items-center justify-between p-2 rounded bg-muted/50 text-sm">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {isIncome ? (
-                          <ArrowDownRight className="h-4 w-4 text-green-600 flex-shrink-0" />
-                        ) : (
-                          <ArrowUpLeft className="h-4 w-4 text-red-600 flex-shrink-0" />
-                        )}
+                        <Icon className={cn("h-4 w-4 flex-shrink-0", text)} />
                         <div className="min-w-0">
-                          <p className="font-medium truncate text-xs">{movement.description}</p>
-                          <p className="text-xs text-muted-foreground">{movement.userName}</p>
+                          <p className="font-medium truncate text-xs">{d.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {[d.detail, movement.userName].filter(Boolean).join(" · ")}
+                          </p>
                         </div>
                       </div>
-                      <p className={`font-semibold flex-shrink-0 ml-2 ${isIncome ? "text-green-600" : "text-red-600"}`}>
-                        {isIncome ? "+" : "-"}S/ {movement.amount.toFixed(2)}
-                      </p>
+                      <p className={cn("font-semibold flex-shrink-0 ml-2", text)}>{movementAmountText(movement)}</p>
                     </div>
                   )
                 })}
@@ -615,35 +540,27 @@ export default function FinanzasPage() {
           <div className="space-y-3">
             {filteredMovements.map((m) => {
               const { date, time } = formatDateTime(m.timestamp || m.createdAt)
-              const movType = getNormalizedType(m)
+              const d = describeMovement(m)
+              const style = DIRECTION_STYLE[d.direction]
+              const Icon = style.icon
               return (
                 <div key={m.id} className={cn(
                   "p-4 rounded-lg border-l-4 transition-colors",
-                  getMovementTypeColor(m)
+                  style.card
                 )}>
                   {/* Header: Description and Amount */}
                   <div className="flex items-start justify-between mb-3 gap-3">
                     <div className="flex items-start gap-3 flex-1">
                       <div className="mt-0.5 flex-shrink-0">
-                        {getMovementIcon(m)}
+                        <Icon className="h-5 w-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm truncate">
-                          {m.description || getMovementTypeLabel(m)}
-                        </h3>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {getMovementTypeLabel(m)} · {getOriginLabel(m)}
-                        </p>
+                        <h3 className="font-semibold text-sm truncate">{d.title}</h3>
+                        {d.detail && <p className="text-xs text-muted-foreground mt-1">{d.detail}</p>}
                       </div>
                     </div>
-                    <div className={cn(
-                      "text-right flex-shrink-0",
-                      movType === "salida" || m.type === "expense" ? "text-destructive" :
-                      movType === "entrada" || m.type === "deposit" || m.type === "opening" || m.type === "cash_distribution" ? "text-green-600" : "text-gray-600"
-                    )}>
-                      <p className="font-bold text-lg">
-                        {(movType === "salida" || m.type === "expense") ? "-" : "+"}S/ {m.amount.toFixed(2)}
-                      </p>
+                    <div className={cn("text-right flex-shrink-0", style.text)}>
+                      <p className="font-bold text-lg">{movementAmountText(m)}</p>
                     </div>
                   </div>
 
