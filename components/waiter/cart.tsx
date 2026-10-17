@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { usePOS } from "@/contexts/pos-context"
 import { useAuth } from "@/contexts/auth-context"
 import { useStoreStock, quantityByInventory, remainingFor } from "@/lib/hooks/use-store-stock"
+import { useBusinessFeatures } from "@/lib/business/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Minus, Plus, Trash2, MessageSquarePlus } from "lucide-react"
@@ -18,7 +19,8 @@ export function Cart({ onSendOrder, isSending }: CartProps) {
   const { cart, getCartTotal, updateCartItemQuantity, updateCartItemNotes, removeFromCart, clearCart } = usePOS()
   const [editingNotesFor, setEditingNotesFor] = useState<string | null>(null)
   const { currentStoreId } = useAuth()
-  const stock = useStoreStock(currentStoreId)
+  const { stockControl } = useBusinessFeatures()
+  const stock = useStoreStock(stockControl ? currentStoreId : null)
   // Todo lo del carrito que comparte inventario (p. ej. dos sabores de pizza
   // del mismo tamaño usan la misma masa) cuenta junto.
   const inCart = useMemo(

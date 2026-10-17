@@ -11,6 +11,7 @@ import {
   getInventoryItemId,
 } from "@/lib/firebase/firestore"
 import { useStoreStock, quantityByInventory } from "@/lib/hooks/use-store-stock"
+import { useBusinessFeatures } from "@/lib/business/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -43,7 +44,9 @@ export function ProductList({ onAddProduct }: ProductListProps) {
   // Stock en vivo del local. null = todavía no cargó (no se marca nada como
   // agotado mientras tanto). Crear un pedido sin stock falla en el servidor
   // ("Stock insuficiente"), así que acá se avisa y se bloquea antes.
-  const stock = useStoreStock(currentStoreId)
+  // Rubros que venden sin control de stock (comida rápida): no se marca ni bloquea nada.
+  const { stockControl } = useBusinessFeatures()
+  const stock = useStoreStock(stockControl ? currentStoreId : null)
 
   // Lo que ya está en el carrito también cuenta: si quedan 2 y hay 2 en el
   // carrito, no se puede agregar un tercero.

@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS companies (
   -- Formato de impresión (recibo/comanda) — TicketConfig en
   -- lib/print/ticket-config.ts. NULL = valores por defecto.
   ticket_settings JSONB,
+  -- Rubro: decide qué funciones usa el POS (lib/business/profiles.ts).
+  business_type   TEXT NOT NULL DEFAULT 'completo',
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

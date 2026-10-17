@@ -13,6 +13,7 @@
  * ---------------------------------------------------------------------------
  */
 import { NextRequest, NextResponse } from "next/server"
+import { normalizeBusinessType } from "@/lib/business/profiles"
 import { getPool, withPlatformOwnerScope } from "@/lib/local/pg-client"
 import { runOwnerRoute, HttpError } from "@/lib/local/platform-auth"
 import {
@@ -32,8 +33,9 @@ export async function GET(req: NextRequest) {
       name: string
       plan: string
       active: boolean
+      business_type: string
       created_at: string
-    }>(`SELECT id, name, plan, active, created_at FROM companies ORDER BY created_at ASC`)
+    }>(`SELECT id, name, plan, active, business_type, created_at FROM companies ORDER BY created_at ASC`)
 
     const { rows: memberCounts } = await getPool().query<{ company_id: string; count: string }>(
       `SELECT company_id, COUNT(*) AS count FROM company_members GROUP BY company_id`
@@ -75,10 +77,11 @@ export async function POST(req: NextRequest) {
     const companyId = `${slugify(name) || "empresa"}-${genSuffix()}`
 
     const result = await withPlatformOwnerScope(async (client) => {
-      await client.query(`INSERT INTO companies (id, name, plan, active) VALUES ($1, $2, $3, true)`, [
+      await client.query(`INSERT INTO companies (id, name, plan, active, business_type) VALUES ($1, $2, $3, true, $4)`, [
         companyId,
         name,
         body.plan || "trial",
+        normalizeBusinessType(body.businessType),
       ])
 
       // 1. Cuenta de EMPRESA — el Super Admin (ve todos los locales).

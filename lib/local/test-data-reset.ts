@@ -25,6 +25,7 @@ export const TRANSACTIONAL_COLLECTIONS: Record<string, string> = {
   order_audit_log: "Historial de pedidos",
   comprobantes: "Comprobantes (boletas, facturas, notas)",
   comprobante_counters: "Numeración de notas de venta",
+  stock_counts: "Conteos de stock de cierre",
   cash_register: "Aperturas y cierres de caja",
   cash_box_balances: "Saldos de caja",
   financial_movements: "Movimientos de caja",

@@ -27,7 +27,8 @@ import {
   // de este archivo (~4500 líneas de lógica de negocio original) queda
   // intacto — ver docs/SQL_MIGRATION_PLAN.md.
 } from "@/lib/local/firebase-shim/firestore"
-import { db } from "@/lib/local/db-placeholder" // el shim ignora este valor — se mantiene solo para no tocar cada call site que lo pasa como primer argumento
+import { getBusinessSettings } from "@/lib/business/client"
+import { db } from "@/lib/local/db-placeholder"// el shim ignora este valor — se mantiene solo para no tocar cada call site que lo pasa como primer argumento
 
 export type FirestoreDate = Timestamp
 
@@ -471,6 +472,7 @@ export const collections = {
   orderAuditLog: "order_audit_log", // NEW: Order compliance audit trail
   comprobantes: "comprobantes", // Cache local de comprobantes emitidos via API SUNAT
   comprobanteCounters: "comprobante_counters", // Correlativo interno por local (notas de venta sin API)
+  stockCounts: "stock_counts", // Conteos de stock al cerrar caja (rubros con closingStockCount)
   clientes: "clientes", // Clientes locales por tenant/tipo/numero de documento
   tables: "tables",
   cashRegister: "cash_register",
@@ -1331,6 +1333,10 @@ async function deductInventoryInTransaction(
   storeId: string,
   items: OrderItem[]
 ): Promise<void> {
+  // Rubros sin control de stock en la venta (p. ej. comida rápida): se vende
+  // sin descontar ni bloquear; el stock se cuenta al cerrar caja.
+  if (!(await getBusinessSettings()).features.stockControl) return
+
   console.log("[Inventory:deduct:start]", { storeId, itemsCount: items.length })
 
   const deductionByInventoryId = new Map<
@@ -1458,6 +1464,9 @@ async function restoreInventoryInTransaction(
   storeId: string,
   items: OrderItem[]
 ): Promise<void> {
+  // Simétrico a deductInventoryInTransaction: si no se descontó, no se devuelve.
+  if (!(await getBusinessSettings()).features.stockControl) return
+
   for (const item of items) {
     if (!item.productId || !item.quantity || item.quantity <= 0) continue
     // Use helper for inventory ID (supports pizza massType pattern)
@@ -2303,7 +2312,7 @@ export async function processPaymentTransaction(
       throw new Error("Este pedido ya fue pagado")
     }
 
-    if (orderData.status !== "delivered") {
+    if (orderData.status !== "delivered" && (await getBusinessSettings()).features.requireDeliveredToCharge) {
       throw new Error("El pedido debe marcarse como entregado antes de cobrarlo")
     }
 

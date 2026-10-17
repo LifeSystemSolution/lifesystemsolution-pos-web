@@ -20,12 +20,14 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Building2, Store as StoreIcon, Plus, ChevronRight, Copy } from "lucide-react"
+import { BUSINESS_PROFILES, BUSINESS_TYPES, normalizeBusinessType, type BusinessType } from "@/lib/business/profiles"
 
 interface CompanyRow {
   id: string
   name: string
   plan: string
   active: boolean
+  business_type?: string
   created_at: string
   userCount: number
   storeCount: number
@@ -50,6 +52,7 @@ interface PlanRow {
 const emptyForm = {
   name: "",
   plan: "trial",
+  businessType: "completo" as BusinessType,
   superEmail: "",
   superPassword: "",
   storeName: "",
@@ -121,7 +124,8 @@ export default function PlataformaPage() {
         body: JSON.stringify({
           name: form.name,
           plan: form.plan,
-          superAdmin: { email: form.superEmail, password: form.superPassword },
+          businessType: form.businessType,
+          superAdmin:{ email: form.superEmail, password: form.superPassword },
           store: {
             name: form.storeName,
             code: form.storeCode,
@@ -226,6 +230,7 @@ export default function PlataformaPage() {
               <TableRow>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Plan</TableHead>
+                <TableHead>Rubro</TableHead>
                 <TableHead>Tiendas</TableHead>
                 <TableHead>Usuarios</TableHead>
                 <TableHead>Estado</TableHead>
@@ -242,6 +247,9 @@ export default function PlataformaPage() {
                     </Link>
                   </TableCell>
                   <TableCell className="capitalize">{c.plan}</TableCell>
+                  <TableCell className="text-sm">
+                    {normalizeBusinessType(c.business_type) === "comida_rapida" ? "Comida rápida" : "Restaurante completo"}
+                  </TableCell>
                   <TableCell>{c.storeCount}</TableCell>
                   <TableCell>{c.userCount}</TableCell>
                   <TableCell>
@@ -263,7 +271,7 @@ export default function PlataformaPage() {
               ))}
               {companies.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                     Sin empresas registradas
                   </TableCell>
                 </TableRow>
@@ -397,6 +405,25 @@ export default function PlataformaPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Rubro (tipo de negocio)</Label>
+                  <Select
+                    value={form.businessType}
+                    onValueChange={(v) => setForm({ ...form, businessType: v as BusinessType })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BUSINESS_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {BUSINESS_PROFILES[t].label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">{BUSINESS_PROFILES[form.businessType].description}</p>
                 </div>
 
                 <div className="p-3 rounded-lg border border-border space-y-3">

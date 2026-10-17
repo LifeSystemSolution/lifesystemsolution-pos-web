@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from "react"
 import { useAuth } from "./auth-context"
+import { getBusinessSettings } from "@/lib/business/client"
 import {
   subscribeToOrders,
   subscribeToTables,
@@ -486,7 +487,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
         throw new Error("El pedido no tiene mesa asociada")
       }
 
-      if (order.status !== "delivered") {
+      if (order.status !== "delivered" && (await getBusinessSettings()).features.requireDeliveredToCharge) {
         throw new Error("El pedido debe marcarse como entregado antes de cobrarlo")
       }
 

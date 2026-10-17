@@ -55,6 +55,8 @@ import { CashMovementModal } from "@/components/caja/cash-movement-modal"
 import { renderReceiptHTML, printHTML } from "@/lib/print/ticket-render"
 import { useTicketConfig } from "@/lib/hooks/use-ticket-config"
 import { useStoreStock, remainingFor } from "@/lib/hooks/use-store-stock"
+import { useBusinessFeatures } from "@/lib/business/client"
+import { StockCountDialog } from "@/components/caja/stock-count-dialog"
 import FacturacionService, { ClienteVarios } from "@/lib/services/facturacion-service"
 import { useDocumentLookup } from "@/lib/hooks/use-document-lookup"
 import type { ClienteLocal } from "@/lib/services/clientes-service"
@@ -73,9 +75,14 @@ export default function CajaPage() {
   } = usePOS()
   const { currentStoreId, currentStore, user } = useAuth()
   const ticketConfig = useTicketConfig()
+  // Funciones según el rubro de la empresa (lib/business/profiles.ts).
+  const features = useBusinessFeatures()
   // Para no dejar subir la cantidad de un pedido abierto sin stock (el
-  // servidor igual lo rechaza: así se avisa antes de intentarlo).
-  const stock = useStoreStock(currentStoreId)
+  // servidor igual lo rechaza: así se avisa antes de intentarlo). Los rubros
+  // sin control de stock en la venta no marcan nada.
+  const stock = useStoreStock(features.stockControl ? currentStoreId : null)
+  const [showStockCount, setShowStockCount] = useState(false)
+  const [stockCountRegisterId, setStockCountRegisterId] = useState<string | undefined>(undefined)
   const { toast } = useToast()
   
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -159,10 +166,15 @@ export default function CajaPage() {
   }, [currentStoreId])
 
   // Filter orders ready for payment (pending payment and ready/delivered) - memoized
-  const pendingPaymentOrders = useMemo(() => 
+  // Restaurante completo: se cobra lo entregado. Comida rápida: el pedido pasa
+  // a caja apenas se envía (la cocina solo recibe la comanda impresa).
+  const pendingPaymentOrders = useMemo(() =>
     orders.filter(
-      (o) => o.paymentStatus === "pending" && o.status === "delivered"
-    ), [orders]
+      (o) =>
+        o.paymentStatus === "pending" &&
+        o.status !== "cancelled" &&
+        (!features.requireDeliveredToCharge || o.status === "delivered")
+    ), [orders, features.requireDeliveredToCharge]
   )
 
   // Memoize parsed payment amounts to avoid recalculating
@@ -460,7 +472,11 @@ export default function CajaPage() {
       await closeCashRegister(amount)
       setShowCloseModal(false)
       setCountedCash("")
-      if (closureId) {
+      if (features.closingStockCount) {
+        // Sin caja fuerte: en vez de distribuir el efectivo, el checklist de stock.
+        setStockCountRegisterId(closureId)
+        setShowStockCount(true)
+      } else if (closureId && features.safeBox) {
         setDistributionContext({ closureId, totalCash: amount })
         setShowDistributionModal(true)
       }
@@ -598,6 +614,11 @@ export default function CajaPage() {
                 >
                   Cerrar Caja
                 </Button>
+                {features.closingStockCount && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Al cerrar caja se abre el conteo de stock para las compras de mañana.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -920,8 +941,8 @@ export default function CajaPage() {
                 {/* Tipo de Comprobante */}
                 <div className="space-y-3">
                   <label className="text-sm font-medium">Tipo de Comprobante</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["NOTA_VENTA", "BOLETA", "FACTURA"] as TipoComprobante[]).map((tipo) => (
+                  <div className={features.sunatDocs ? "grid grid-cols-3 gap-2" : "grid grid-cols-1 gap-2"}>
+                    {((features.sunatDocs ? ["NOTA_VENTA", "BOLETA", "FACTURA"] : ["NOTA_VENTA"]) as TipoComprobante[]).map((tipo) => (
                       <Button
                         key={tipo}
                         type="button"
@@ -1041,13 +1062,27 @@ export default function CajaPage() {
       {/* Caja Fuerte y Auditoría */}
       <Card className="border-border bg-card">
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Caja Fuerte y Auditoría</CardTitle>
+          <CardTitle className="text-lg">{features.safeBox ? "Caja Fuerte y Auditoría" : "Movimientos y Gastos"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-            <span className="text-sm">Saldo Caja Fuerte</span>
-            <span className="font-bold text-amber-600">S/ {(safeBox?.currentBalance || 0).toFixed(2)}</span>
-          </div>
+          {features.safeBox && (
+            <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+              <span className="text-sm">Saldo Caja Fuerte</span>
+              <span className="font-bold text-amber-600">S/ {(safeBox?.currentBalance || 0).toFixed(2)}</span>
+            </div>
+          )}
+          {features.closingStockCount && currentStoreId && (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setStockCountRegisterId(cashRegister?.id)
+                setShowStockCount(true)
+              }}
+            >
+              Conteo de stock
+            </Button>
+          )}
           <div className="flex gap-2">
             <Button className="flex-1" variant="outline" onClick={() => setShowCashMovementModal(true)}>Movimiento de Caja</Button>
             <Button className="flex-1" variant="outline" onClick={() => setShowExpenseModal(true)}>Registrar Gasto</Button>
@@ -1492,6 +1527,20 @@ export default function CajaPage() {
         cashClosure={selectedClosureForSales}
       />
 
+      {/* Conteo de stock del cierre (rubros con closingStockCount) */}
+      {currentStoreId && (
+        <StockCountDialog
+          open={showStockCount}
+          onOpenChange={setShowStockCount}
+          storeId={currentStoreId}
+          storeName={currentStore?.name}
+          userId={user?.id}
+          userName={user?.name}
+          cashRegisterId={stockCountRegisterId}
+          ticketConfig={ticketConfig}
+        />
+      )}
+
       {/* Cash Distribution Modal (Post Closure) */}
       <Dialog open={showDistributionModal} onOpenChange={setShowDistributionModal}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1575,7 +1624,7 @@ export default function CajaPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cash_register">Caja Operativa</SelectItem>
-                  <SelectItem value="safe_box">Caja Fuerte</SelectItem>
+                  {features.safeBox && <SelectItem value="safe_box">Caja Fuerte</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

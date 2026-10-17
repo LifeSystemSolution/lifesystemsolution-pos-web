@@ -411,6 +411,84 @@ export function renderKitchenHTML(order: Order, store: StoreLike | undefined, cf
   })
 }
 
+// --- Conteo de stock al cierre (comida rápida) ------------------------------------
+
+export type StockCountLine = {
+  category: string
+  name: string
+  counted: number
+  toBuy: boolean
+}
+
+/**
+ * Ticket del conteo de stock al cerrar caja: lo que hay de cada producto y,
+ * aparte, la lista "POR COMPRAR" con casillas para tachar al día siguiente.
+ * Usa el papel y la letra de la nota de venta.
+ */
+export function renderStockCountHTML(
+  lines: StockCountLine[],
+  meta: { storeName?: string; countedBy?: string; date: Date },
+  cfg: TicketConfig
+): string {
+  const r = cfg.receipt
+  const thermal = PAPER_SPECS[r.paper].thermal
+  const byCategory = new Map<string, StockCountLine[]>()
+  for (const l of lines) {
+    const k = l.category || "OTROS"
+    if (!byCategory.has(k)) byCategory.set(k, [])
+    byCategory.get(k)!.push(l)
+  }
+  const toBuy = lines.filter((l) => l.toBuy)
+  const css = `
+  .r { padding: ${thermal ? "2mm 0 4mm" : "0"}; }
+  .title { text-align: center; font-weight: bold; font-size: calc(15px * var(--f)); letter-spacing: .04em; }
+  .sub { text-align: center; font-size: calc(10.5px * var(--f)); }
+  .sep { border-top: 1px dashed #000; margin: 2mm 0; }
+  .cat { font-weight: bold; text-transform: uppercase; margin-top: 2mm; font-size: calc(10.5px * var(--f)); }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: .4mm 0; vertical-align: top; }
+  td.q { text-align: right; white-space: nowrap; font-weight: bold; width: 18%; }
+  .zero td { font-weight: bold; }
+  .buy-title { text-align: center; font-weight: bold; font-size: calc(13px * var(--f)); border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 1mm 0; margin-top: 3mm; }
+  .box { display: inline-block; width: 3.2mm; height: 3.2mm; border: 1px solid #000; margin-right: 1.5mm; vertical-align: -0.5mm; }
+  .small { text-align: center; font-size: calc(9.5px * var(--f)); margin-top: 3mm; }
+  `
+  const sections = Array.from(byCategory.entries())
+    .map(
+      ([cat, ls]) =>
+        `<div class="cat">${esc(cat)}</div><table>${ls
+          .map((l) => `<tr${l.counted <= 0 ? ' class="zero"' : ""}><td>${esc(l.name)}</td><td class="q">${l.counted}</td></tr>`)
+          .join("")}</table>`
+    )
+    .join("")
+  const buyList = toBuy.length
+    ? `<div class="buy-title">POR COMPRAR (${toBuy.length})</div><table>${toBuy
+        .map((l) => `<tr><td><span class="box"></span>${esc(l.name)}</td><td class="q">hay ${l.counted}</td></tr>`)
+        .join("")}</table>`
+    : `<div class="buy-title">NADA POR COMPRAR</div>`
+  const body = [
+    `<div class="r">`,
+    `<div class="title">CONTEO DE STOCK</div>`,
+    `<div class="sub">Cierre de caja</div>`,
+    meta.storeName ? `<div class="sub">${esc(meta.storeName)}</div>` : "",
+    `<div class="sub">${esc(formatReceiptDateTime(meta.date))}</div>`,
+    meta.countedBy ? `<div class="sub">Contó: ${esc(meta.countedBy)}</div>` : "",
+    `<div class="sep"></div>`,
+    sections,
+    buyList,
+    `<div class="small">${lines.length} productos contados</div>`,
+    `</div>`,
+  ].join("\n")
+  return documentShell({
+    title: "Conteo de stock",
+    paper: r.paper,
+    fontScale: r.fontScale,
+    fontFamily: r.fontFamily === "mono" ? MONO : SANS,
+    css,
+    body,
+  })
+}
+
 // --- Vista previa y ventana de impresión ----------------------------------------
 
 /** Pedido de ejemplo para la vista previa del panel de plataforma. */

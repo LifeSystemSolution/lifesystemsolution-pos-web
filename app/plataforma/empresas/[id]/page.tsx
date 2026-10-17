@@ -8,6 +8,7 @@ import { ConfirmDeleteDialog } from "@/components/platform/confirm-delete-dialog
 import { TicketSettingsCard } from "@/components/platform/ticket-settings-card"
 import { TestDataCard } from "@/components/platform/test-data-card"
 import type { TicketConfig } from "@/lib/print/ticket-config"
+import { BUSINESS_PROFILES, BUSINESS_TYPES, type BusinessType } from "@/lib/business/profiles"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -43,6 +44,7 @@ interface CompanyDetail {
   sunatConfigured: boolean
   sunat_settings: { baseUrl?: string; apiKey?: string; apiSecret?: string; configured?: boolean } | null
   ticket_settings: TicketConfig
+  business_type: BusinessType
   created_at: string
 }
 interface Member {
@@ -106,6 +108,7 @@ export default function PlataformaEmpresaDetailPage() {
   // Información general
   const [nameValue, setNameValue] = useState("")
   const [planValue, setPlanValue] = useState("")
+  const [businessTypeValue, setBusinessTypeValue] = useState<BusinessType>("completo")
   const [activeValue, setActiveValue] = useState(true)
   const [isSavingInfo, setIsSavingInfo] = useState(false)
   const [showDeleteCompany, setShowDeleteCompany] = useState(false)
@@ -140,6 +143,7 @@ export default function PlataformaEmpresaDetailPage() {
       setPlans(plansRes.plans || [])
       setNameValue(detail.company.name)
       setPlanValue(detail.company.plan)
+      setBusinessTypeValue(detail.company.business_type || "completo")
       setActiveValue(detail.company.active)
       setSunatBaseUrl(detail.company.sunat_settings?.baseUrl || "")
       setSunatApiKey(detail.company.sunat_settings?.apiKey || "")
@@ -159,7 +163,10 @@ export default function PlataformaEmpresaDetailPage() {
   const handleSaveInfo = async () => {
     setIsSavingInfo(true)
     try {
-      await platformFetch(base, { method: "PATCH", body: JSON.stringify({ name: nameValue, plan: planValue, active: activeValue }) })
+      await platformFetch(base, {
+        method: "PATCH",
+        body: JSON.stringify({ name: nameValue, plan: planValue, active: activeValue, businessType: businessTypeValue }),
+      })
       await load()
     } catch (err) {
       fail(err, "Error guardando cambios")
@@ -324,6 +331,22 @@ export default function PlataformaEmpresaDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2 sm:col-span-3">
+              <Label>Rubro (tipo de negocio)</Label>
+              <Select value={businessTypeValue} onValueChange={(v) => setBusinessTypeValue(v as BusinessType)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BUSINESS_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {BUSINESS_PROFILES[t].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{BUSINESS_PROFILES[businessTypeValue].description}</p>
             </div>
             <div className="space-y-2">
               <Label>Estado</Label>

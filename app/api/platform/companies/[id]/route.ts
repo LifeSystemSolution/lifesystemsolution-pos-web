@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getPool, withPlatformOwnerScope } from "@/lib/local/pg-client"
 import { runOwnerRoute, HttpError } from "@/lib/local/platform-auth"
 import { normalizeTicketConfig } from "@/lib/print/ticket-config"
+import { BUSINESS_TYPES, normalizeBusinessType } from "@/lib/business/profiles"
 
 export const runtime = "nodejs"
 
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
     const { id } = await params
 
     const { rows: companyRows } = await getPool().query(
-      `SELECT id, name, plan, active, sunat_settings, ticket_settings, created_at FROM companies WHERE id = $1`,
+      `SELECT id, name, plan, active, sunat_settings, ticket_settings, business_type, created_at FROM companies WHERE id = $1`,
       [id]
     )
     const company = companyRows[0]
@@ -57,6 +58,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
         ...company,
         sunatConfigured: !!company.sunat_settings?.configured,
         ticket_settings: normalizeTicketConfig(company.ticket_settings),
+        business_type: normalizeBusinessType(company.business_type),
       },
       members: members.map((m) => ({
         id: m.id,
@@ -88,7 +90,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   return runOwnerRoute(req, "companies/[id] PATCH", async () => {
     const { id } = await params
-    const { name, plan, active, sunatSettings, ticketSettings } = await req.json()
+    const { name, plan, active, sunatSettings, ticketSettings, businessType } = await req.json()
 
     const sets: string[] = []
     const values: any[] = []
@@ -108,6 +110,11 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (sunatSettings !== undefined) {
       values.push(JSON.stringify(sunatSettings))
       sets.push(`sunat_settings = $${values.length}::jsonb`)
+    }
+    if (businessType !== undefined) {
+      if (!BUSINESS_TYPES.includes(businessType)) throw new HttpError(400, "Rubro desconocido")
+      values.push(businessType)
+      sets.push(`business_type = $${values.length}`)
     }
     if (ticketSettings !== undefined) {
       // Se guarda normalizado: solo claves conocidas, tipos válidos, textos acotados.

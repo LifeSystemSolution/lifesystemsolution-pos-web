@@ -3,6 +3,7 @@
 import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
+import { useBusinessFeatures } from "@/lib/business/client"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -21,7 +22,10 @@ interface POSHeaderProps {
 }
 
 export function POSHeader({ title }: POSHeaderProps) {
-  const { user, store, logout, isAdmin, isSuperAdmin, isCajero, isMesero, isCocina, isPlatformOwner, changeStore } = useAuth()
+  const { user, store, logout, isAdmin, isSuperAdmin, isCajero, isMesero, isCocina: isCocinaRole, isPlatformOwner, changeStore } = useAuth()
+  // Rubros sin pantalla de cocina (comida rápida): la cocina trabaja con la comanda impresa.
+  const { kitchenScreen } = useBusinessFeatures()
+  const isCocina = isCocinaRole && kitchenScreen
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const router = useRouter()
